@@ -1,0 +1,92 @@
+[project]
+name = "evidence-research-agent"
+version = "0.1.0"
+description = "Autonomous research system that builds a citation-backed evidence graph."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # API
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    # DB
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.2",
+    # Queue / cache
+    "celery[redis]>=5.4",
+    "redis>=5.2",
+    # Stores
+    "neo4j>=5.26",
+    "qdrant-client>=1.12",
+    # Orchestration / LLM abstraction (LangChain)
+    "langchain>=0.3",
+    "langchain-core>=0.3",
+    "langchain-community>=0.3",    # LLM caches (InMemory/Redis) via set_llm_cache
+    "langchain-openai>=0.2",       # ChatOpenAI + OpenAIEmbeddings (also OpenAI-compatible)
+    "langchain-anthropic>=0.2",
+    "langchain-text-splitters>=0.3",
+    "langgraph>=0.2.50",
+    "langgraph-checkpoint-postgres>=2.0",
+    # Search / connectors
+    "tavily-python>=0.5",
+    "feedparser>=6.0",            # arXiv Atom feed
+    "youtube-transcript-api>=0.6",
+    "praw>=7.8",                  # Reddit
+    "httpx>=0.27",
+    # Content processing
+    "trafilatura>=1.12",          # HTML main-content extraction
+    "beautifulsoup4>=4.12",
+    "pypdf>=5.1",
+    # Config
+    "python-decouple>=3.8",
+    # Auth
+    "pyjwt>=2.9",
+    "bcrypt>=4.0",
+    # Reliability / util
+    "tenacity>=9.0",
+    "structlog>=24.4",
+    # Observability
+    "opentelemetry-api>=1.28",
+    "opentelemetry-sdk>=1.28",
+    "langfuse>=3",           # v3+ handler: langfuse.langchain.CallbackHandler
+]
+
+[project.optional-dependencies]
+vertex = ["langchain-google-vertexai>=2.0"]
+voyage = ["langchain-voyageai>=0.1"]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+    "mypy>=1.13",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI's dependency-injection idiom requires Depends() in argument defaults.
+"apps/api/*" = ["B008"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]

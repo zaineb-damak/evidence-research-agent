@@ -1,0 +1,20 @@
+{
+  "name": "example-llm-comparison",
+  "cases": [
+    {
+      "case_id": "model-x-context-length",
+      "question": "What context length does Model X support?",
+      "depth": "fast",
+      "source_types": ["web", "documentation"],
+      "expected_source_urls": ["https://docs.example.com/model-x"],
+      "expected_claims": [
+        {
+          "text": "Model X supports 128K context",
+          "aliases": ["128K context", "128,000 tokens", "128k tokens"]
+        }
+      ],
+      "required_topics": ["context"],
+      "known_contradictions": []
+    }
+  ]
+}

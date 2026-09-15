@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Lint
+        run: uv run ruff check src apps tests
+
+      - name: Unit and integration tests
+        run: uv run pytest tests -q
+
+      # Evaluation regression gate runs on fakes here (no API keys in CI); the
+      # runner is dependency-injected, so a scheduled job can run it live.
+      - name: Evaluation gate (metrics unit + example dataset)
+        run: uv run pytest tests/evaluation -q

@@ -1,0 +1,241 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #57606a;
+  --border: #d0d7de;
+  --accent: #0969da;
+  --surface: #f6f8fa;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+header h1 {
+  font-size: 22px;
+}
+
+.research-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field textarea,
+.field select {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-width: 280px;
+}
+
+fieldset.field {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.checkbox {
+  display: inline-flex;
+  gap: 4px;
+  margin-right: 10px;
+  align-items: center;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.progress ul {
+  list-style: none;
+  padding: 0;
+}
+
+.progress li {
+  padding: 4px 0;
+  color: var(--muted);
+}
+
+.progress li.active {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin: 20px 0 12px;
+}
+
+.tabs button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.evidence-explorer {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+}
+
+.claim-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.claim-list button {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.claim-list button.selected {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.confidence-pill {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.claim-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.claim-detail .status {
+  font-weight: 600;
+}
+
+.factors {
+  list-style: none;
+  padding: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.claim-links button {
+  border: none;
+  color: var(--accent);
+  padding: 2px 0;
+  background: none;
+  text-align: left;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.report {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  line-height: 1.5;
+}
+
+.report-item {
+  margin: 2px 0;
+}
+
+.report-nested {
+  margin: 0 0 6px 20px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.error {
+  color: #cf222e;
+}
+
+.login-form {
+  max-width: 360px;
+  margin: 48px auto;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.login-form input {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sign-out {
+  height: fit-content;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #8b949e;
+    --border: #30363d;
+    --surface: #161b22;
+  }
+}
