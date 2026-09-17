@@ -104,6 +104,10 @@ class Settings(BaseModel):
     # App
     crawler_user_agent: str = "evidence-research-agent/0.1"
 
+    # CORS — comma-separated allowed origins for browser clients (e.g. the
+    # frontend dev server). Empty disables CORS middleware entirely.
+    cors_allowed_origins: str = ""
+
     def cap_for(self, depth: ResearchDepth) -> DepthCap:
         return DEPTH_CAPS.get(depth, DEPTH_CAPS[DEFAULT_DEPTH])
 
@@ -111,6 +115,15 @@ class Settings(BaseModel):
     def postgres_libpq_dsn(self) -> str:
         """The DSN in libpq form (no SQLAlchemy driver suffix) for psycopg."""
         return self.postgres_dsn.replace("postgresql+psycopg://", "postgresql://")
+
+    @property
+    def cors_allowed_origin_list(self) -> list[str]:
+        """`cors_allowed_origins` split into a clean list of origins."""
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
 
 
 def _load_from_env() -> Settings:
@@ -177,6 +190,9 @@ def _load_from_env() -> Settings:
             "CHECKPOINT_THREAD_SCOPE", default=defaults.checkpoint_thread_scope
         ),
         crawler_user_agent=config("CRAWLER_USER_AGENT", default=defaults.crawler_user_agent),
+        cors_allowed_origins=config(
+            "CORS_ALLOWED_ORIGINS", default=defaults.cors_allowed_origins
+        ),
     )
 
 

@@ -1,0 +1,524 @@
+/*
+ * Research composer / progress stepper / evidence explorer styles. Only
+ * tokens from styles/tokens.css are used — no invented colors, no shadows,
+ * no card kit.
+ */
+
+/* Research composer (HomePage). */
+
+.research-composer {
+  max-width: 640px;
+  margin: 0 auto;
+  padding-top: var(--space-6);
+}
+
+.research-composer__title {
+  font-family: var(--font-serif);
+  font-size: var(--text-display-size);
+  line-height: var(--text-display-line);
+  color: var(--ink);
+  margin-bottom: var(--space-5);
+}
+
+.research-composer__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.research-composer__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.research-composer__label {
+  font-size: var(--text-ui-label-size);
+  line-height: var(--text-ui-label-line);
+  color: var(--ink);
+}
+
+.research-composer__textarea,
+.research-composer__select {
+  font: inherit;
+  font-size: var(--text-body-ui-size);
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  resize: vertical;
+}
+
+.research-composer__row {
+  display: flex;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.research-composer__source-types {
+  border: none;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+  min-width: 240px;
+}
+
+.research-composer__checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.research-composer__checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-body-ui-size);
+  color: var(--ink);
+}
+
+.research-composer__error {
+  font-size: var(--text-body-ui-size);
+  color: var(--contradiction);
+}
+
+.research-composer__submit {
+  align-self: flex-start;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: var(--text-ui-label-size);
+  color: var(--paper);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  transition: opacity var(--motion-duration) var(--motion-easing);
+}
+
+.research-composer__submit:hover {
+  opacity: 0.85;
+}
+
+.research-composer__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Research page shell. */
+
+.research-page__status {
+  color: var(--ink-muted);
+  font-size: var(--text-body-ui-size);
+}
+
+.research-page__title {
+  font-family: var(--font-serif);
+  font-size: var(--text-h1-size);
+  line-height: var(--text-h1-line);
+  color: var(--ink);
+  margin-bottom: var(--space-5);
+  max-width: 70ch;
+}
+
+.research-page__error-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-body-ui-size);
+  color: var(--contradiction);
+  margin-bottom: var(--space-4);
+}
+
+.research-page__retry {
+  font-size: var(--text-body-ui-size);
+  color: var(--ink);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+}
+
+.research-page__retry:hover {
+  border-color: var(--ink);
+}
+
+/* Progress stepper — the centerpiece live-progress UI. */
+
+.progress-stepper {
+  max-width: 640px;
+}
+
+.progress-stepper__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.stage-row {
+  border-bottom: 1px solid var(--line);
+}
+
+.stage-row__header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: none;
+  border: none;
+  padding: var(--space-3) 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stage-row__header:disabled {
+  cursor: default;
+}
+
+.stage-row__marker {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: transparent;
+}
+
+.stage-row--pending .stage-row__label {
+  color: var(--ink-muted);
+}
+
+.stage-row--active .stage-row__marker {
+  border-color: var(--pending);
+  background: var(--pending);
+  animation: stage-row-pulse 1.6s ease-in-out infinite;
+}
+
+.stage-row--done .stage-row__marker {
+  border-color: var(--verified);
+  background: var(--verified);
+}
+
+.stage-row--error .stage-row__marker {
+  border-color: var(--contradiction);
+  background: var(--contradiction);
+}
+
+.stage-row__label {
+  flex: 1;
+  font-size: var(--text-ui-label-size);
+  line-height: var(--text-ui-label-line);
+  color: var(--ink);
+}
+
+.stage-row__elapsed {
+  font-size: var(--text-meta-size);
+  color: var(--ink-muted);
+}
+
+/* The pulse itself — disabled globally under prefers-reduced-motion by the
+   blanket animation-duration override in styles/base.css, so no separate
+   media query is needed here. */
+@keyframes stage-row-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.stage-row__substeps {
+  list-style: none;
+  margin: 0 0 var(--space-3) 4px;
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.stage-row__substep {
+  font-size: var(--text-body-ui-size);
+  color: var(--ink-muted);
+}
+
+.stage-row__error-actions {
+  margin: 0 0 var(--space-3) 4px;
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--contradiction);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.stage-row__error-message {
+  font-size: var(--text-body-ui-size);
+  color: var(--contradiction);
+}
+
+.stage-row__retry {
+  font-size: var(--text-body-ui-size);
+  color: var(--ink);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.stage-row__retry:hover {
+  border-color: var(--ink);
+}
+
+.progress-stepper__stats {
+  display: flex;
+  gap: var(--space-5);
+  margin-top: var(--space-5);
+}
+
+.stat-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-chip__value {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-line);
+  color: var(--ink);
+}
+
+.stat-chip__label {
+  font-size: var(--text-meta-size);
+  color: var(--ink-muted);
+}
+
+/* Research results (Report/Evidence tabs). */
+
+.research-results__status {
+  color: var(--ink-muted);
+  font-size: var(--text-body-ui-size);
+}
+
+.research-results__tabs {
+  display: flex;
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--space-5);
+}
+
+.research-results__tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-2) 0;
+  font-size: var(--text-ui-label-size);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.research-results__tab--active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+/* Evidence explorer. */
+
+.evidence-explorer {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: var(--space-5);
+}
+
+.evidence-explorer__heading {
+  font-size: var(--text-ui-label-size);
+  color: var(--ink-muted);
+  margin-bottom: var(--space-3);
+}
+
+.evidence-explorer__empty {
+  color: var(--ink-muted);
+}
+
+.claim-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.claim-list__row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-left: 3px solid var(--line);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+}
+
+.claim-list__row--verified {
+  border-left-color: var(--verified);
+}
+
+.claim-list__row--pending {
+  border-left-color: var(--pending);
+}
+
+.claim-list__row--contradiction {
+  border-left-color: var(--contradiction);
+}
+
+.claim-list__row--selected {
+  background: var(--paper-raised);
+}
+
+.claim-list__text {
+  font-size: var(--text-body-ui-size);
+  color: var(--ink);
+}
+
+.claim-list__meta {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--text-meta-size);
+  color: var(--ink-muted);
+}
+
+/* Claim detail. */
+
+.claim-detail {
+  border-left: 3px solid var(--line);
+  padding-left: var(--space-4);
+}
+
+.claim-detail--verified {
+  border-left-color: var(--verified);
+}
+
+.claim-detail--pending {
+  border-left-color: var(--pending);
+}
+
+.claim-detail--contradiction {
+  border-left-color: var(--contradiction);
+}
+
+.claim-detail__text {
+  font-family: var(--font-serif);
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-line);
+  color: var(--ink);
+}
+
+.claim-detail__status {
+  font-size: var(--text-body-ui-size);
+  color: var(--ink-muted);
+  margin-bottom: var(--space-3);
+}
+
+.claim-detail__confidence {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.claim-detail__confidence-track {
+  flex: 1;
+  max-width: 240px;
+  height: 6px;
+  background: var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.claim-detail__confidence-fill {
+  height: 100%;
+  background: var(--verified);
+}
+
+.claim-detail__confidence-value {
+  font-size: var(--text-meta-size);
+  color: var(--ink-muted);
+}
+
+.claim-detail__factors {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-5);
+}
+
+.claim-detail__factor {
+  display: flex;
+  justify-content: space-between;
+  max-width: 320px;
+  font-size: var(--text-meta-size);
+  color: var(--ink-muted);
+}
+
+.claim-detail__section {
+  margin-bottom: var(--space-5);
+}
+
+.claim-detail__section-title {
+  font-size: var(--text-ui-label-size);
+  color: var(--ink);
+  margin-bottom: var(--space-2);
+}
+
+.claim-detail__muted {
+  color: var(--ink-muted);
+  font-size: var(--text-body-ui-size);
+}
+
+.claim-detail__source-list,
+.claim-detail__claim-links {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.claim-detail__source {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-body-ui-size);
+}
+
+.claim-detail__claim-links button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--ink);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: var(--text-body-ui-size);
+}
+
+/* Source meta (type badge + separately labeled quality figure). */
+
+.source-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-meta-size);
+  color: var(--ink-muted);
+}
+
+.source-meta__badge {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+  text-transform: capitalize;
+}

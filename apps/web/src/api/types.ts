@@ -122,3 +122,42 @@ export interface CreateResearchResponse {
   research_id: string;
   status: ResearchStatus;
 }
+
+// Lightweight per-job projection for the session-history sidebar
+// (GET /api/research). Mirrors src/models/schemas.py::ResearchJobListItem —
+// distinct from ResearchJobSummary, which is the single-job detail shape.
+export interface ResearchJobListItem {
+  research_id: string;
+  question: string;
+  status: ResearchStatus;
+  depth: ResearchDepth;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// The LangGraph node identifiers for the research pipeline graph. Mirrors
+// src/models/schemas.py::NodeName exactly — these are the `stage` values on a
+// ProgressEvent below.
+export type StageName = "plan" | "search" | "extract" | "score" | "verify" | "synthesize";
+
+// Mirrors src/models/progress.py::ProgressEventType.
+export type ProgressEventType =
+  | "snapshot"
+  | "stage_started"
+  | "stage_completed"
+  | "substep"
+  | "done"
+  | "error";
+
+// One update in a research job's live-progress stream
+// (GET /api/research/{id}/events, SSE). Mirrors src/models/progress.py::ProgressEvent.
+export interface ProgressEvent {
+  research_id: string;
+  event_type: ProgressEventType;
+  stage: StageName | null;
+  status: ResearchStatus;
+  message: string;
+  detail: Record<string, unknown>;
+  emitted_at: string;
+}

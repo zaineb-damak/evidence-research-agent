@@ -99,6 +99,22 @@ class WorkflowRoute(StrEnum):
     NO_PASSAGES = "no_passages"
 
 
+class NodeName(StrEnum):
+    """LangGraph node identifiers for the research pipeline graph.
+
+    Lives here (rather than in src/workflows/nodes.py, which defines the node
+    functions) so both src/workflows/nodes.py and src/workflows/progress_emitter.py
+    can import it without a circular dependency between those two modules.
+    """
+
+    PLAN = "plan"
+    SEARCH = "search"
+    EXTRACT = "extract"
+    SCORE = "score"
+    VERIFY = "verify"
+    SYNTHESIZE = "synthesize"
+
+
 # --- Source acquisition ---------------------------------------------------
 
 
@@ -206,6 +222,22 @@ class ResearchRequest(BaseModel):
     source_types: list[SourceType] = Field(
         default_factory=lambda: [SourceType.WEB, SourceType.PAPER, SourceType.DOCUMENTATION]
     )
+
+
+class ResearchJobListItem(BaseModel):
+    """Lightweight per-job projection for the session-history list
+    (`GET /api/research`). Named distinctly from the single-job detail shape
+    returned by `GET /api/research/{id}` to avoid confusing the two response
+    shapes on either side of the API.
+    """
+
+    research_id: str
+    question: str
+    status: ResearchStatus
+    depth: ResearchDepth
+    error: str | None = None
+    created_at: datetime
+    updated_at: datetime
 
 
 class CostMeter(BaseModel):

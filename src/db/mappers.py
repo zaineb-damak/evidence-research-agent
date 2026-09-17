@@ -28,6 +28,7 @@ from src.models.schemas import (
     Evidence,
     Passage,
     ResearchDepth,
+    ResearchJobListItem,
     ResearchState,
     ResearchStatus,
     ResearchTask,
@@ -52,6 +53,24 @@ def job_row_from_state(state: ResearchState) -> ResearchJobRow:
         tokens_out=state.cost.tokens_out,
         cost_usd=state.cost.usd,
         latency_ms=state.cost.latency_ms,
+    )
+
+
+def job_list_item_from_row(row) -> ResearchJobListItem:
+    """Build a session-history list item from a column-projected job row.
+
+    `row` is either a `ResearchJobRow` or a SQLAlchemy `Row` result carrying the
+    same-named columns (`id, question, status, depth, error, created_at,
+    updated_at`); both support attribute access, so either works here.
+    """
+    return ResearchJobListItem(
+        research_id=row.id,
+        question=row.question,
+        status=ResearchStatus(row.status),
+        depth=ResearchDepth(row.depth),
+        error=row.error,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
     )
 
 

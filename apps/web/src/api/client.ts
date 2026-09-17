@@ -10,6 +10,7 @@ import type {
   EvidenceGraph,
   ReportResponse,
   ResearchDepth,
+  ResearchJobListItem,
   ResearchJobSummary,
   Source,
   SourceType,
@@ -89,4 +90,10 @@ export function getGraph(researchId: string): Promise<EvidenceGraph> {
 
 export function getReport(researchId: string): Promise<ReportResponse> {
   return getJson<ReportResponse>(`${API_BASE_PATH}/${researchId}/report`);
+}
+
+// GET /api/research — the caller's own research jobs, newest first
+// (backs the history sidebar; see hooks/useSessions.ts).
+export function getSessions(): Promise<ResearchJobListItem[]> {
+  return getJson<ResearchJobListItem[]>(API_BASE_PATH);
 }

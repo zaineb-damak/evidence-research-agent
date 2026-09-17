@@ -60,6 +60,11 @@ class ResearchJobRow(Base):
     status: Mapped[str] = mapped_column(String(STATUS_LENGTH))
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     report: Mapped[str] = mapped_column(Text, default="")
+    # Sub-step detail for the currently running stage (e.g. sources/claims
+    # counts) — a client reconnecting to the SSE stream reads this back as its
+    # first SNAPSHOT event. The pipeline stage itself is already covered by
+    # `status` (one ResearchStatus member per stage).
+    progress_detail: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     tokens_in: Mapped[int] = mapped_column(Integer, default=0)
     tokens_out: Mapped[int] = mapped_column(Integer, default=0)

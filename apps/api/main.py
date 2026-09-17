@@ -9,6 +9,8 @@ callers may only read their own jobs. POST /auth/token issues tokens.
 from __future__ import annotations
 
 from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from apps.api.auth import AuthContext, require_user
 from apps.api.dependencies import (
@@ -17,8 +19,10 @@ from apps.api.dependencies import (
     get_job_enqueuer,
     get_repository,
 )
-from apps.api.jobs import require_owned_job
+from apps.api.events import SSE_MEDIA_TYPE, stream_progress
+from apps.api.jobs import require_owned_job, require_owned_job_snapshot
 from apps.api.routes_auth import router as auth_router
+from src.config import Settings, get_settings
 from src.db.repository import JobRepository
 from src.models.schemas import ResearchRequest
 from src.stores.graph import GraphStore
@@ -26,8 +30,28 @@ from src.stores.graph import GraphStore
 API_TITLE = "Evidence Research Agent"
 API_VERSION = "0.1.0"
 
+# CORS allows any method/header for the allowed origins: auth is a bearer token
+# (checked per-route by require_user), not cookies, so allow_credentials stays
+# False and there is no session state for a broad method/header allowlist to put
+# at risk.
+CORS_ALLOW_ALL = ["*"]
+
+# Disables any intermediary buffering (proxies, uvicorn) so SSE chunks reach
+# the client as they're written rather than in delayed batches.
+SSE_RESPONSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+
 app = FastAPI(title=API_TITLE, version=API_VERSION)
 app.include_router(auth_router)
+
+_cors_settings = get_settings()
+if _cors_settings.cors_allowed_origin_list:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_settings.cors_allowed_origin_list,
+        allow_credentials=False,
+        allow_methods=CORS_ALLOW_ALL,
+        allow_headers=CORS_ALLOW_ALL,
+    )
 
 
 @app.post("/api/research")
@@ -42,6 +66,14 @@ def create_research(
     )
     enqueue(state.research_id)
     return {"research_id": state.research_id, "status": state.status}
+
+
+@app.get("/api/research")
+def list_research(
+    repository: JobRepository = Depends(get_repository),
+    auth: AuthContext = Depends(require_user),
+) -> list[dict]:
+    return [item.model_dump() for item in repository.list_by_user(auth.user_id)]
 
 
 @app.get("/api/research/{research_id}")
@@ -106,3 +138,18 @@ def get_report(
 ) -> dict:
     state = require_owned_job(repository, research_id, auth)
     return {"research_id": state.research_id, "status": state.status, "report": state.report}
+
+
+@app.get("/api/research/{research_id}/events")
+def stream_research_events(
+    research_id: str,
+    repository: JobRepository = Depends(get_repository),
+    settings: Settings = Depends(get_settings),
+    auth: AuthContext = Depends(require_user),
+) -> StreamingResponse:
+    snapshot = require_owned_job_snapshot(repository, research_id, auth)
+    return StreamingResponse(
+        stream_progress(snapshot, settings),
+        media_type=SSE_MEDIA_TYPE,
+        headers=SSE_RESPONSE_HEADERS,
+    )

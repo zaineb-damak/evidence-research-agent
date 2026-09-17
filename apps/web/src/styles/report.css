@@ -1,0 +1,88 @@
+/*
+ * Report view (react-markdown based). Serif body per the established type
+ * scale, contained line length so long-form report text stays readable.
+ */
+
+.report {
+  max-width: 760px;
+  font-family: var(--font-serif);
+  font-size: var(--text-body-report-size);
+  line-height: var(--text-body-report-line);
+  color: var(--ink);
+}
+
+.report h1,
+.report h2,
+.report h3 {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--ink);
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-3);
+}
+
+.report h1 {
+  font-size: var(--text-h1-size);
+  line-height: var(--text-h1-line);
+}
+
+.report h2 {
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-line);
+}
+
+.report h3 {
+  font-size: var(--text-ui-label-size);
+  line-height: var(--text-ui-label-line);
+}
+
+.report p {
+  margin-bottom: var(--space-4);
+  max-width: 80ch;
+}
+
+.report ul,
+.report ol {
+  list-style: initial;
+  padding-left: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+
+.report li {
+  margin-bottom: var(--space-1);
+}
+
+.report table {
+  border-collapse: collapse;
+  margin-bottom: var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--text-body-ui-size);
+}
+
+.report th,
+.report td {
+  border: 1px solid var(--line);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+}
+
+.report code {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-size);
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+}
+
+/* Citation links get a distinct treatment from body prose. */
+.report a {
+  font-family: var(--font-sans);
+  color: var(--verified);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.report a:hover {
+  opacity: 0.85;
+}

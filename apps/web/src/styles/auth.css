@@ -1,0 +1,131 @@
+/*
+ * Auth (login/signup) — a split panel: a statement grounded in the product's
+ * mechanism on the left, the form on the right. No card-shadow kit — flat
+ * surfaces separated by a hairline, matching the rest of the app.
+ */
+
+.auth-split {
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.auth-split__statement-panel {
+  background: var(--ink);
+  color: var(--paper);
+  display: flex;
+  align-items: center;
+  padding: var(--space-6);
+}
+
+.auth-split__statement {
+  font-family: var(--font-serif);
+  font-size: var(--text-display-size);
+  line-height: var(--text-display-line);
+  max-width: 26ch;
+}
+
+.auth-split__form-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--paper);
+}
+
+.auth-form {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.auth-form__title {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: var(--text-h1-size);
+  line-height: var(--text-h1-line);
+  color: var(--ink);
+}
+
+.auth-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.auth-form__label {
+  font-size: var(--text-ui-label-size);
+  line-height: var(--text-ui-label-line);
+  color: var(--ink);
+}
+
+.auth-form__field input {
+  font: inherit;
+  font-size: var(--text-body-ui-size);
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+.auth-form__field input[aria-invalid="true"] {
+  border-color: var(--contradiction);
+}
+
+.auth-form__field-error {
+  font-size: var(--text-meta-size);
+  line-height: var(--text-meta-line);
+  color: var(--contradiction);
+}
+
+.auth-form__banner-error {
+  font-size: var(--text-body-ui-size);
+  line-height: var(--text-body-ui-line);
+  color: var(--contradiction);
+}
+
+.auth-form__submit {
+  align-self: flex-start;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: var(--text-ui-label-size);
+  color: var(--paper);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  transition: opacity var(--motion-duration) var(--motion-easing);
+}
+
+.auth-form__submit:hover {
+  opacity: 0.85;
+}
+
+.auth-form__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.auth-form__switch {
+  font-size: var(--text-body-ui-size);
+  line-height: var(--text-body-ui-line);
+  color: var(--ink-muted);
+}
+
+.auth-form__switch a {
+  color: var(--ink);
+}
+
+@media (max-width: 720px) {
+  .auth-split {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-split__statement-panel {
+    padding: var(--space-5);
+  }
+}

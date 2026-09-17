@@ -1,0 +1,62 @@
+/*
+ * Design tokens — the single source of truth for color, type, spacing,
+ * radius, and motion. Every other stylesheet consumes these custom
+ * properties instead of hard-coding literals (CLAUDE.md: no magic values).
+ *
+ * Deliberately no box-shadow or gradient tokens: the visual language is
+ * flat surfaces with hairline borders for elevation, not a "SaaS card kit".
+ */
+
+:root {
+  /* Color — cool, desaturated evidence/verification palette. */
+  --ink: #1c2230;
+  --ink-muted: color-mix(in srgb, var(--ink) 65%, transparent);
+  --paper: #f4f6f4;
+  --paper-raised: #ffffff;
+  --line: #d9deda;
+  --verified: #2e6f59;
+  --contradiction: #9c3b2e;
+  --pending: #b8863c;
+
+  /* Type families. */
+  --font-serif: "IBM Plex Serif", serif;
+  --font-sans: "IBM Plex Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  /* Type scale — size / line-height pairs per role. */
+  --text-display-size: 28px;
+  --text-display-line: 34px;
+  --text-h1-size: 24px;
+  --text-h1-line: 30px;
+  --text-h2-size: 19px;
+  --text-h2-line: 26px;
+  --text-ui-label-size: 15px;
+  --text-ui-label-line: 22px;
+  --text-body-report-size: 16px;
+  --text-body-report-line: 26px;
+  --text-body-ui-size: 14px;
+  --text-body-ui-line: 20px;
+  --text-meta-size: 13px;
+  --text-meta-line: 18px;
+  --text-mono-size: 13px;
+  --text-mono-line: 20px;
+
+  /* Spacing scale. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Radius scale. */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+
+  /* Motion. */
+  --motion-duration: 150ms;
+  --motion-easing: ease;
+
+  /* Layout. */
+  --shell-sidebar-width: 260px;
+}

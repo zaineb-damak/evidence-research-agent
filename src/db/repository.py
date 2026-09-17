@@ -7,9 +7,10 @@ without a live database. Both satisfy the `JobRepository` protocol.
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from datetime import datetime
+from typing import Any, Protocol, runtime_checkable
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from src.clock import utcnow
 from src.db.base import session_scope
@@ -19,6 +20,7 @@ from src.db.mappers import (
     document_rows_from_state,
     entity_rows_from_state,
     evidence_rows_from_state,
+    job_list_item_from_row,
     job_row_from_state,
     passage_rows_from_state,
     source_rows_from_state,
@@ -36,7 +38,13 @@ from src.models.db import (
     ResearchTaskRow,
     SourceRow,
 )
-from src.models.schemas import ResearchRequest, ResearchState, ResearchStatus
+from src.models.progress import JobProgressSnapshot
+from src.models.schemas import (
+    ResearchJobListItem,
+    ResearchRequest,
+    ResearchState,
+    ResearchStatus,
+)
 
 # Child tables cleared and rewritten on each save (keyed by job_id).
 _CHILD_ROW_TYPES = (
@@ -49,6 +57,9 @@ _CHILD_ROW_TYPES = (
     EvidenceRow,
     ContradictionRow,
 )
+
+# Session history (`GET /api/research`) is capped, not paginated, in v1.
+JOB_LIST_MAX_RESULTS = 50
 
 
 @runtime_checkable
@@ -63,6 +74,18 @@ class JobRepository(Protocol):
     def get(self, research_id: str) -> ResearchState | None: ...
 
     def save(self, state: ResearchState) -> None: ...
+
+    def list_by_user(self, user_id: str) -> list[ResearchJobListItem]: ...
+
+    def update_progress(
+        self,
+        research_id: str,
+        status: ResearchStatus | None,
+        detail: dict[str, Any] | None,
+        error: str | None,
+    ) -> None: ...
+
+    def get_progress_snapshot(self, research_id: str) -> JobProgressSnapshot | None: ...
 
 
 def _new_state(
@@ -130,6 +153,77 @@ class PostgresJobRepository:
             session.add_all(evidence_rows_from_state(state))
             session.add_all(contradiction_rows_from_state(state))
 
+    def list_by_user(self, user_id: str) -> list[ResearchJobListItem]:
+        # Deliberately not the 8-child-table `get()` path: history only needs
+        # title/status/timestamps, so this is a single column-projected query
+        # against `research_jobs` alone. Jobs with owner_user_id IS NULL
+        # (legacy/anonymous) never match and are therefore excluded from every
+        # user's history automatically.
+        with session_scope() as session:
+            rows = session.execute(
+                select(
+                    ResearchJobRow.id,
+                    ResearchJobRow.question,
+                    ResearchJobRow.status,
+                    ResearchJobRow.depth,
+                    ResearchJobRow.error,
+                    ResearchJobRow.created_at,
+                    ResearchJobRow.updated_at,
+                )
+                .where(ResearchJobRow.owner_user_id == user_id)
+                .order_by(ResearchJobRow.created_at.desc())
+                .limit(JOB_LIST_MAX_RESULTS)
+            ).all()
+            return [job_list_item_from_row(row) for row in rows]
+
+    def update_progress(
+        self,
+        research_id: str,
+        status: ResearchStatus | None,
+        detail: dict[str, Any] | None,
+        error: str | None,
+    ) -> None:
+        # A targeted single-column UPDATE — no ORM row load, no child-table
+        # cascade. This is the cheap write path called once per progress
+        # event; the expensive full `save()` (sources/claims/passages/...)
+        # stays reserved for the end of the run.
+        values: dict[str, Any] = {"updated_at": utcnow()}
+        if status is not None:
+            values["status"] = status.value
+        if detail is not None:
+            values["progress_detail"] = detail
+        if error is not None:
+            values["error"] = error
+        with session_scope() as session:
+            session.execute(
+                update(ResearchJobRow)
+                .where(ResearchJobRow.id == research_id)
+                .values(**values)
+            )
+
+    def get_progress_snapshot(self, research_id: str) -> JobProgressSnapshot | None:
+        with session_scope() as session:
+            row = session.execute(
+                select(
+                    ResearchJobRow.id,
+                    ResearchJobRow.owner_user_id,
+                    ResearchJobRow.status,
+                    ResearchJobRow.error,
+                    ResearchJobRow.progress_detail,
+                    ResearchJobRow.updated_at,
+                ).where(ResearchJobRow.id == research_id)
+            ).first()
+            if row is None:
+                return None
+            return JobProgressSnapshot(
+                research_id=row.id,
+                owner_user_id=row.owner_user_id,
+                status=ResearchStatus(row.status),
+                error=row.error,
+                progress_detail=row.progress_detail or {},
+                updated_at=row.updated_at,
+            )
+
     @staticmethod
     def _children(session, row_type, research_id: str) -> list:
         return list(
@@ -145,10 +239,21 @@ class PostgresJobRepository:
 
 
 class InMemoryJobRepository:
-    """Test double: stores deep copies of states keyed by research id."""
+    """Test double: stores deep copies of states keyed by research id.
+
+    `ResearchState` itself carries no timestamps (those are a persistence-layer
+    concept), so created_at/updated_at are side-tracked here to support
+    `list_by_user` with the same shape the Postgres repository returns.
+    """
 
     def __init__(self) -> None:
         self._states: dict[str, ResearchState] = {}
+        self._created_at: dict[str, datetime] = {}
+        self._updated_at: dict[str, datetime] = {}
+        # Side-tracked like created_at/updated_at above: ResearchState carries
+        # no progress_detail field of its own (that's a persistence-layer
+        # concept, mirroring the Postgres column of the same name).
+        self._progress_detail: dict[str, dict[str, Any]] = {}
 
     def create(
         self,
@@ -165,4 +270,60 @@ class InMemoryJobRepository:
         return stored.model_copy(deep=True) if stored is not None else None
 
     def save(self, state: ResearchState) -> None:
+        now = utcnow()
+        self._created_at.setdefault(state.research_id, now)
+        self._updated_at[state.research_id] = now
         self._states[state.research_id] = state.model_copy(deep=True)
+
+    def list_by_user(self, user_id: str) -> list[ResearchJobListItem]:
+        # Jobs with owner_user_id None (legacy/anonymous) never match and are
+        # therefore excluded from every user's history automatically. Mirrors
+        # SQL NULL semantics (`owner_user_id = :user_id` never matches a NULL
+        # column, and a NULL parameter would never match anything either) even
+        # though a real caller's user_id is never None in practice.
+        items = [
+            ResearchJobListItem(
+                research_id=state.research_id,
+                question=state.original_question,
+                status=state.status,
+                depth=state.depth,
+                error=state.error,
+                created_at=self._created_at[state.research_id],
+                updated_at=self._updated_at[state.research_id],
+            )
+            for state in self._states.values()
+            if user_id is not None and state.owner_user_id == user_id
+        ]
+        items.sort(key=lambda item: item.created_at, reverse=True)
+        return items[:JOB_LIST_MAX_RESULTS]
+
+    def update_progress(
+        self,
+        research_id: str,
+        status: ResearchStatus | None,
+        detail: dict[str, Any] | None,
+        error: str | None,
+    ) -> None:
+        state = self._states.get(research_id)
+        if state is None:
+            return
+        if status is not None:
+            state.status = status
+        if error is not None:
+            state.error = error
+        if detail is not None:
+            self._progress_detail[research_id] = detail
+        self._updated_at[research_id] = utcnow()
+
+    def get_progress_snapshot(self, research_id: str) -> JobProgressSnapshot | None:
+        state = self._states.get(research_id)
+        if state is None:
+            return None
+        return JobProgressSnapshot(
+            research_id=state.research_id,
+            owner_user_id=state.owner_user_id,
+            status=state.status,
+            error=state.error,
+            progress_detail=self._progress_detail.get(research_id, {}),
+            updated_at=self._updated_at[research_id],
+        )

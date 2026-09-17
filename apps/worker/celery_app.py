@@ -16,6 +16,7 @@ from celery import Celery
 from celery.utils.log import get_task_logger
 from langgraph.checkpoint.postgres import PostgresSaver
 
+from apps.worker.progress import build_progress_sink
 from src.config import get_settings
 from src.db.repository import PostgresJobRepository
 from src.llm.caching import configure_llm_cache
@@ -23,6 +24,7 @@ from src.models.schemas import ResearchStatus
 from src.observability.langfuse import langfuse_callbacks
 from src.workflows.checkpoint import compose_thread_id
 from src.workflows.deps import build_deps
+from src.workflows.progress_emitter import build_terminal_event
 from src.workflows.research import run_pipeline
 
 MILLISECONDS_PER_SECOND = 1000
@@ -64,6 +66,7 @@ def run_research_task(research_id: str) -> dict:
         session_id=state.owner_session_id,
     )
     callbacks = langfuse_callbacks(settings)
+    progress_sink = build_progress_sink(repository, settings)
     with PostgresSaver.from_conn_string(settings.postgres_libpq_dsn) as checkpointer:
         checkpointer.setup()
         deps = build_deps(state.source_types, settings)
@@ -74,6 +77,7 @@ def run_research_task(research_id: str) -> dict:
                 checkpointer=checkpointer,
                 thread_id=thread_id,
                 callbacks=callbacks,
+                on_progress_event=progress_sink,
             )
         except Exception as error:  # noqa: BLE001 — job-level boundary
             # Log the full traceback so failures are visible in the worker
@@ -84,5 +88,8 @@ def run_research_task(research_id: str) -> dict:
         finally:
             state.cost.latency_ms = int((time.time() - started_at) * MILLISECONDS_PER_SECOND)
             repository.save(state)
+            # Guarantees a terminal event reaches subscribers even on a hard
+            # crash (an exception above, or one save() itself never raised).
+            progress_sink(build_terminal_event(state))
 
     return {"research_id": state.research_id, "status": state.status}

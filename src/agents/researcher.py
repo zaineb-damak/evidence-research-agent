@@ -7,6 +7,8 @@ hash so re-runs are idempotent.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from src.config import get_settings
 from src.models.schemas import (
     Document,
@@ -21,6 +23,11 @@ from src.sources.fetcher import chunk_text, fetch_clean
 from src.sources.mapping import source_from_raw_result
 from src.text.hashing import content_hash
 
+# Called once per newly-found source, so a caller (the search graph node) can
+# report live progress. Optional and LangGraph-agnostic: this module never
+# imports anything streaming-related itself.
+OnSourceFound = Callable[[Source], None]
+
 
 class ResearchOutput:
     def __init__(self) -> None:
@@ -34,6 +41,7 @@ def run_research(
     connectors: dict[object, SourceConnector],
     depth: ResearchDepth,
     per_query: int = 5,
+    on_source_found: OnSourceFound | None = None,
 ) -> ResearchOutput:
     settings = get_settings()
     cap = settings.cap_for(depth)
@@ -80,6 +88,8 @@ def run_research(
                 out.sources.append(source)
                 out.documents.append(document)
                 task.source_ids.append(source.id)
+                if on_source_found is not None:
+                    on_source_found(source)
 
                 for ordinal, chunk in enumerate(chunk_text(document_text)):
                     out.passages.append(

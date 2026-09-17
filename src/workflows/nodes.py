@@ -8,7 +8,6 @@ bills token usage, and returns only the state fields it changed. Orchestration
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
 from typing import Any
 
 from langchain_core.embeddings import Embeddings
@@ -22,7 +21,7 @@ from src.config import get_settings
 from src.evidence.graph import persist_graph
 from src.evidence.scoring import merge_entities, score_claim_confidence
 from src.llm.base import StructuredLLM
-from src.models.schemas import ResearchState, ResearchStatus
+from src.models.schemas import NodeName, ResearchState, ResearchStatus, Source
 from src.observability.tracing import stage_span
 from src.reliability.cost import record_usage
 from src.retrieval.index import PassageIndex, build_embedded_vectors
@@ -30,17 +29,12 @@ from src.retrieval.pipeline import retrieve_top_passages
 from src.sources.base import SourceConnector
 from src.stores.graph import GraphStore
 from src.workflows.cost import billed_cost
+from src.workflows.progress_emitter import emit_stage_started, emit_substep
 
 TOP_PASSAGES_PER_TASK = 6
 
-
-class NodeName(StrEnum):
-    PLAN = "plan"
-    SEARCH = "search"
-    EXTRACT = "extract"
-    SCORE = "score"
-    VERIFY = "verify"
-    SYNTHESIZE = "synthesize"
+SOURCE_FOUND_MESSAGE_TEMPLATE = "Found source: {label}"
+EXTRACT_SUBSTEP_MESSAGE_TEMPLATE = "Extracted claims for: {sub_question}"
 
 
 @dataclass
@@ -54,6 +48,7 @@ class Deps:
 
 def plan_node(state: ResearchState, deps: Deps) -> dict[str, Any]:
     with stage_span(NodeName.PLAN):
+        emit_stage_started(state.research_id, NodeName.PLAN)
         tasks, tokens_in, tokens_out = plan_research(
             deps.llm, state.original_question, state.depth
         )
@@ -66,7 +61,25 @@ def plan_node(state: ResearchState, deps: Deps) -> dict[str, Any]:
 
 def search_node(state: ResearchState, deps: Deps) -> dict[str, Any]:
     with stage_span(NodeName.SEARCH):
-        research_output = run_research(state.research_tasks, deps.connectors, state.depth)
+        emit_stage_started(state.research_id, NodeName.SEARCH)
+        sources_found = 0
+
+        def on_source_found(source: Source) -> None:
+            nonlocal sources_found
+            sources_found += 1
+            emit_substep(
+                state.research_id,
+                NodeName.SEARCH,
+                SOURCE_FOUND_MESSAGE_TEMPLATE.format(label=source.domain or source.url),
+                detail={"sources_found": sources_found},
+            )
+
+        research_output = run_research(
+            state.research_tasks,
+            deps.connectors,
+            state.depth,
+            on_source_found=on_source_found,
+        )
         passage_vectors = build_embedded_vectors(deps.embeddings, research_output.passages)
         if research_output.passages:
             deps.passage_index.add_passages(
@@ -90,9 +103,11 @@ def extract_node(state: ResearchState, deps: Deps) -> dict[str, Any]:
     evidence = list(state.evidence)
     entities = list(state.entities)
     cost = state.cost.model_copy(deep=True)
+    tasks_total = len(state.research_tasks)
 
     with stage_span(NodeName.EXTRACT):
-        for task in state.research_tasks:
+        emit_stage_started(state.research_id, NodeName.EXTRACT)
+        for tasks_done, task in enumerate(state.research_tasks, start=1):
             top_passage_ids = retrieve_top_passages(
                 state.research_id,
                 task.sub_question,
@@ -112,6 +127,16 @@ def extract_node(state: ResearchState, deps: Deps) -> dict[str, Any]:
             claims.extend(extraction.claims)
             evidence.extend(extraction.evidence)
             merge_entities(entities, extraction.entities)
+            emit_substep(
+                state.research_id,
+                NodeName.EXTRACT,
+                EXTRACT_SUBSTEP_MESSAGE_TEMPLATE.format(sub_question=task.sub_question),
+                detail={
+                    "tasks_done": tasks_done,
+                    "tasks_total": tasks_total,
+                    "claims_extracted": len(claims),
+                },
+            )
             if len(claims) >= claim_cap:
                 break
 
@@ -126,6 +151,7 @@ def extract_node(state: ResearchState, deps: Deps) -> dict[str, Any]:
 
 def score_node(state: ResearchState, deps: Deps) -> dict[str, Any]:
     with stage_span(NodeName.SCORE):
+        emit_stage_started(state.research_id, NodeName.SCORE)
         score_claim_confidence(
             state.claims,
             state.evidence,
@@ -143,7 +169,14 @@ def score_node(state: ResearchState, deps: Deps) -> dict[str, Any]:
 
 def verify_node(state: ResearchState, deps: Deps) -> dict[str, Any]:
     with stage_span(NodeName.VERIFY):
-        tokens_in, tokens_out = run_verification(deps.llm, deps.embeddings, state)
+        emit_stage_started(state.research_id, NodeName.VERIFY)
+
+        def on_progress(message: str, detail: dict[str, Any]) -> None:
+            emit_substep(state.research_id, NodeName.VERIFY, message, detail=detail)
+
+        tokens_in, tokens_out = run_verification(
+            deps.llm, deps.embeddings, state, on_progress=on_progress
+        )
     return {
         "claims": state.claims,
         "evidence": state.evidence,
@@ -155,6 +188,7 @@ def verify_node(state: ResearchState, deps: Deps) -> dict[str, Any]:
 
 def synthesize_node(state: ResearchState, deps: Deps) -> dict[str, Any]:
     with stage_span(NodeName.SYNTHESIZE):
+        emit_stage_started(state.research_id, NodeName.SYNTHESIZE)
         report, tokens_in, tokens_out = synthesize_report(deps.llm, state)
         # Persist the evidence graph now that claims/contradictions are final.
         persist_graph(deps.graph_store, state)

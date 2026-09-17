@@ -58,6 +58,7 @@ class AuthenticationError(ResearchAgentError):
     MISSING_TOKEN = "Missing authentication token"
     INVALID_CREDENTIALS = "Incorrect username or password"
     NO_JWT_SECRET = "Server has no JWT secret configured; refusing all requests"
+    EMAIL_ALREADY_REGISTERED = "An account with this email already exists"
 
 
 class JobNotFoundError(ResearchAgentError):

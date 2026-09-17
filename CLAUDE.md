@@ -24,8 +24,9 @@ Built in stacked branches, one phase per branch:
 3. **Clear, self-explanatory names.** No abbreviations that aren't obvious. A
    reader should understand a variable from its name without context.
 4. **All API endpoints require authentication.** Every data route depends on
-   `require_user` (JWT) from `apps/api/auth.py`. The sole unauthenticated route
-   is `POST /auth/token`, which issues the token.
+   `require_user` (JWT) from `apps/api/auth.py`. The two unauthenticated routes
+   are `POST /auth/token`, which issues the token, and `POST /auth/signup`,
+   which creates an account and auto-issues one.
 5. **Structured, clean code.** Small, single-responsibility functions.
 6. **Helper functions live in separate files.** Keep agents/workflows focused on
    orchestration; put reusable helpers in their own module (e.g. `src/text/`,
@@ -53,9 +54,11 @@ src/embeddings/   LangChain Embeddings factory (no wrapper)
 src/text/         hashing, tokenize, nested
 src/exceptions.py central exception hierarchy + messages
 src/observability/ OTel tracing + Langfuse handler
-src/workflows/    graph assembly (research) + nodes + cost + routing + checkpoint + deps
-apps/api/         FastAPI service (JWT-authenticated) + auth + routes_auth + jobs
-apps/worker/      Celery worker
+src/realtime/     Redis pub/sub channel naming + transport for live progress events
+src/workflows/    graph assembly (research) + nodes + progress_emitter + cost + routing
+                  + checkpoint + deps
+apps/api/         FastAPI service (JWT-authenticated) + auth + routes_auth + jobs + events
+apps/worker/      Celery worker + progress sink
 apps/web/         React UI (JWT login)
 scripts/          create_user, generate_graph_diagram
 ```
@@ -118,6 +121,19 @@ seam or `generate_structured` loop:
   `ResearchDepth`.
 - **Pipeline diagram**: `python -m scripts.generate_graph_diagram` regenerates
   `docs/pipeline-graph.md` (Mermaid).
+- **Live progress**: `run_pipeline` (`src/workflows/research.py`) runs the graph
+  with `compiled_graph.stream(state, config, stream_mode=["updates", "custom"])`
+  instead of `.invoke()`, accumulating `updates` payloads into the returned
+  state and forwarding both `updates` (as `STAGE_COMPLETED` events) and
+  `custom` (already-built `ProgressEvent`s from `src/workflows/progress_emitter.py`,
+  via LangGraph's `get_stream_writer()`) to an optional `on_progress_event`
+  sink. The worker's sink (`apps/worker/progress.py`) writes the cheap
+  `research_jobs.status`/`progress_detail` columns
+  (`JobRepository.update_progress`) and publishes on a per-job Redis channel
+  (`src/realtime/`); `GET /api/research/{id}/events` (`apps/api/events.py`)
+  streams those as SSE, authenticated like every other route, starting with a
+  `SNAPSHOT` of the persisted state so a client reconnecting mid-run or after
+  completion is never stuck waiting.
 
 ## Testing
 
