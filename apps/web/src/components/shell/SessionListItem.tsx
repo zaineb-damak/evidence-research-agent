@@ -1,8 +1,10 @@
-import { Link } from "react-router-dom";
+// One history row. NavLink drives the selected treatment (the design's white
+// row with an accent dot) through aria-current="page", so no separate
+// "is this the open run" prop is threaded down.
+
+import { NavLink } from "react-router-dom";
 
 import type { ResearchJobListItem } from "../../api/types";
-import { RESEARCH_STATUS_TONE } from "../../constants";
-import { formatRelativeTime } from "../../lib/format";
 import { buildResearchPath } from "../../routes";
 
 interface SessionListItemProps {
@@ -10,28 +12,16 @@ interface SessionListItemProps {
 }
 
 export function SessionListItem({ session }: SessionListItemProps) {
-  // RESEARCH_STATUS_TONE values ("verified" | "pending" | "contradiction")
-  // are exactly the tokens.css custom property names for the three signal
-  // colors, so the dot's color is derived directly with no extra lookup.
-  const tone = RESEARCH_STATUS_TONE[session.status];
-
   return (
     <li className="session-list__item">
-      <Link
+      <NavLink
         className="session-list__link"
         to={buildResearchPath(session.research_id)}
         title={session.question}
       >
-        <span
-          className="session-list__status-dot"
-          style={{ backgroundColor: `var(--${tone})` }}
-          aria-hidden="true"
-        />
+        <span className="session-list__status-dot" aria-hidden="true" />
         <span className="session-list__question">{session.question}</span>
-        <span className="session-list__time">
-          {formatRelativeTime(new Date(session.updated_at))}
-        </span>
-      </Link>
+      </NavLink>
     </li>
   );
 }

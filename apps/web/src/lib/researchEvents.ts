@@ -252,3 +252,23 @@ export function applyProgressEvent(
       return state;
   }
 }
+
+// Per-stage state for a run that is already finished when the page opens:
+// there is no live stream to follow, only the persisted status, so the
+// reducer's own SNAPSHOT handling reconstructs the steps.
+export function streamStateFromStatus(
+  researchId: string,
+  status: ResearchStatus,
+  error: string | null,
+  emittedAt: string,
+): ResearchStreamState {
+  return applyProgressEvent(createInitialStreamState(), {
+    research_id: researchId,
+    event_type: "snapshot",
+    stage: null,
+    status,
+    message: error ?? "",
+    detail: {},
+    emitted_at: emittedAt,
+  });
+}

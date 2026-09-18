@@ -1,62 +1,194 @@
 /*
  * Design tokens — the single source of truth for color, type, spacing,
- * radius, and motion. Every other stylesheet consumes these custom
- * properties instead of hard-coding literals (CLAUDE.md: no magic values).
+ * radius, elevation, and motion (design_handoff_research_agent/README.md,
+ * "Design Tokens"). Every other stylesheet consumes these custom properties
+ * instead of hard-coding literals (CLAUDE.md: no magic values).
  *
- * Deliberately no box-shadow or gradient tokens: the visual language is
- * flat surfaces with hairline borders for elevation, not a "SaaS card kit".
+ * Spacing and radius tokens are named by their pixel value (--space-13 is
+ * 13px) because the design uses an irregular scale, not a multiple of a base
+ * unit.
  */
 
 :root {
-  /* Color — cool, desaturated evidence/verification palette. */
-  --ink: #1c2230;
-  --ink-muted: color-mix(in srgb, var(--ink) 65%, transparent);
-  --paper: #f4f6f4;
+  /* Surfaces. */
+  --paper: #fbfbfa;
+  --paper-translucent: rgba(251, 251, 250, 0.9);
+  --paper-transparent: rgba(251, 251, 250, 0);
   --paper-raised: #ffffff;
-  --line: #d9deda;
-  --verified: #2e6f59;
-  --contradiction: #9c3b2e;
-  --pending: #b8863c;
+  --paper-raised-hover: #fafaf9;
+  --paper-sunken: #f3f3f1;
+
+  /* Ink, strongest to faintest. */
+  --ink: #1c1b19;
+  --ink-prose: #26241f;
+  --ink-2: #57544e;
+  --ink-3: #6c6a66;
+  --ink-3-muted: #7b7872;
+  --ink-4: #8b8880;
+  --ink-4-muted: #9a968e;
+  --ink-5: #a9a59c;
+  --ink-5-muted: #b0aca3;
+  --ink-on-accent: #ffffff;
+
+  /* Placeholder fills (brand mark, favicons, avatar). */
+  --placeholder-fill: #e6e5e1;
+  --placeholder-fill-strong: #dfdedb;
+
+  /* Accent (themeable: hue 165 teal; the handoff also ships 250 / 40). */
+  --accent: oklch(0.52 0.1 165);
+  --accent-hover: oklch(0.45 0.1 165);
+  --accent-text: oklch(0.4 0.1 165);
+  --accent-tint: oklch(0.52 0.1 165 / 0.09);
+  --accent-tint-strong: oklch(0.52 0.1 165 / 0.1);
+  --accent-border: oklch(0.52 0.1 165 / 0.45);
+
+  /* Hairlines (borders), faint to strong. */
+  --hairline-faint: rgba(28, 27, 25, 0.07);
+  --hairline: rgba(28, 27, 25, 0.08);
+  --hairline-card: rgba(28, 27, 25, 0.09);
+  --hairline-control: rgba(28, 27, 25, 0.1);
+  --hairline-strong: rgba(28, 27, 25, 0.12);
+  --hairline-input: rgba(28, 27, 25, 0.14);
+  --hairline-hover: rgba(28, 27, 25, 0.2);
+  --hairline-hover-strong: rgba(28, 27, 25, 0.22);
+  --hairline-hover-strongest: rgba(28, 27, 25, 0.26);
+
+  /* Washes (subtle fills), faint to strong. */
+  --wash-faint: rgba(28, 27, 25, 0.045);
+  --wash: rgba(28, 27, 25, 0.05);
+  --wash-strong: rgba(28, 27, 25, 0.07);
+  --wash-stronger: rgba(28, 27, 25, 0.09);
+  --dot-idle: rgba(28, 27, 25, 0.16);
+  --dot-off: rgba(28, 27, 25, 0.18);
+  --scrim: rgba(28, 27, 25, 0.32);
+
+  /* Evidence signal colors (claim status rails, confidence meters). */
+  --verified: oklch(0.52 0.1 165);
+  --pending: oklch(0.62 0.11 75);
+  --contradiction: oklch(0.5 0.14 30);
 
   /* Type families. */
-  --font-serif: "IBM Plex Serif", serif;
-  --font-sans: "IBM Plex Sans", sans-serif;
-  --font-mono: "IBM Plex Mono", monospace;
+  --font-sans: "Helvetica Neue", Helvetica, "Segoe UI", sans-serif;
+  --font-serif: Newsreader, Georgia, serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Type scale — size / line-height pairs per role. */
-  --text-display-size: 28px;
-  --text-display-line: 34px;
-  --text-h1-size: 24px;
-  --text-h1-line: 30px;
-  --text-h2-size: 19px;
-  --text-h2-line: 26px;
-  --text-ui-label-size: 15px;
-  --text-ui-label-line: 22px;
-  --text-body-report-size: 16px;
-  --text-body-report-line: 26px;
-  --text-body-ui-size: 14px;
-  --text-body-ui-line: 20px;
-  --text-meta-size: 13px;
-  --text-meta-line: 18px;
-  --text-mono-size: 13px;
-  --text-mono-line: 20px;
+  /* Type sizes. */
+  --text-10: 10px;
+  --text-11: 11px;
+  --text-11-5: 11.5px;
+  --text-12: 12px;
+  --text-12-5: 12.5px;
+  --text-13: 13px;
+  --text-13-5: 13.5px;
+  --text-14: 14px;
+  --text-14-5: 14.5px;
+  --text-15: 15px;
+  --text-15-5: 15.5px;
+  --text-prose: 18px;
+  --text-display-26: 26px;
+  --text-display-32: 32px;
+  --text-display-34: 34px;
+  --text-display-42: 42px;
 
-  /* Spacing scale. */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
+  /* Line heights. */
+  --leading-tight: 1.1;
+  --leading-heading: 1.15;
+  --leading-row: 1.3;
+  --leading-quote: 1.35;
+  --leading-card: 1.4;
+  --leading-body: 1.5;
+  --leading-input: 1.55;
+  --leading-prose: 1.62;
 
-  /* Radius scale. */
-  --radius-sm: 4px;
-  --radius-md: 8px;
+  /* Weights (the design uses only these three). */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* Letter spacing. */
+  --tracking-label: 0.06em;
+  --tracking-brand: -0.01em;
+  --tracking-display: -0.015em;
+
+  /* Spacing (named by pixel value). */
+  --space-2: 2px;
+  --space-3: 3px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-7: 7px;
+  --space-8: 8px;
+  --space-9: 9px;
+  --space-10: 10px;
+  --space-11: 11px;
+  --space-12: 12px;
+  --space-13: 13px;
+  --space-14: 14px;
+  --space-15: 15px;
+  --space-16: 16px;
+  --space-18: 18px;
+  --space-20: 20px;
+  --space-22: 22px;
+  --space-24: 24px;
+  --space-26: 26px;
+  --space-28: 28px;
+  --space-30: 30px;
+  --space-34: 34px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --space-56: 56px;
+  --space-60: 60px;
+
+  /* Radius (named by pixel value). */
+  --radius-4: 4px;
+  --radius-7: 7px;
+  --radius-8: 8px;
+  --radius-9: 9px;
+  --radius-10: 10px;
+  --radius-11: 11px;
+  --radius-13: 13px;
+  --radius-15: 15px;
+  --radius-16: 16px;
+  --radius-20: 20px;
+  --radius-pill: 999px;
+  --radius-circle: 50%;
+
+  /* Elevation. */
+  --shadow-subtle: 0 1px 2px rgba(28, 27, 25, 0.05);
+  --shadow-row: 0 1px 2px rgba(28, 27, 25, 0.06);
+  --shadow-segment: 0 1px 2px rgba(28, 27, 25, 0.08);
+  --shadow-button: 0 1px 3px rgba(28, 27, 25, 0.2);
+  --shadow-card: 0 2px 10px rgba(28, 27, 25, 0.05);
+  --shadow-composer: 0 2px 10px rgba(28, 27, 25, 0.05), 0 12px 32px -18px rgba(28, 27, 25, 0.22);
+  --shadow-drawer: 0 12px 40px rgba(28, 27, 25, 0.18);
+  --header-blur: blur(8px);
 
   /* Motion. */
   --motion-duration: 150ms;
   --motion-easing: ease;
+  --pulse-duration: 1.6s;
 
-  /* Layout. */
-  --shell-sidebar-width: 260px;
+  /* Component sizes. */
+  --shell-sidebar-width: 272px;
+  --shell-header-height: 56px;
+  --shell-min-height: 640px;
+  --content-width-composer: 720px;
+  --content-width-report: 760px;
+  --auth-form-width: 380px;
+  --auth-value-width: 420px;
+  --auth-pane-basis: 440px;
+  --brand-mark-size: 22px;
+  --icon-button-size: 28px;
+  --avatar-size: 28px;
+  --submit-size: 38px;
+  --submit-size-small: 32px;
+  --step-mark-size: 18px;
+  --favicon-size: 14px;
+  --oauth-glyph-size: 15px;
+  --dot-size-small: 5px;
+  --dot-size: 6px;
+  --dot-size-large: 7px;
+  --icon-size-small: 12px;
+  --icon-size: 15px;
+  --source-card-min-width: 200px;
+  --source-chips-min-width: 200px;
 }

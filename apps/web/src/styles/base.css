@@ -19,8 +19,9 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: var(--text-body-ui-size);
-  line-height: var(--text-body-ui-line);
+  font-size: var(--text-14);
+  line-height: var(--leading-body);
+  -webkit-font-smoothing: antialiased;
 }
 
 h1,
@@ -40,18 +41,119 @@ ol {
 }
 
 a {
-  color: inherit;
+  color: var(--accent);
+  text-decoration: none;
 }
 
-button {
+a:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+button,
+input,
+textarea {
   font: inherit;
   color: inherit;
 }
 
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
 /* Never remove focus outlines — make them clearly visible instead. */
 :focus-visible {
-  outline: 2px solid var(--pending);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* The pulsing "running" dot (plan card header). Disabled under reduced
+   motion by the blanket override below. */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Shared uppercase section label ("Today", "Key sources", "Why Lantern"). */
+.eyebrow {
+  font-size: var(--text-11);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-4-muted);
+}
+
+/* Shared brand row: placeholder mark + wordmark. */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-9);
+  min-width: 0;
+}
+
+.brand__mark {
+  flex: none;
+  width: var(--brand-mark-size);
+  height: var(--brand-mark-size);
+  border-radius: var(--radius-7);
+  background: var(--accent);
+}
+
+.brand__name {
+  font-size: var(--text-14);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-brand);
+  color: var(--ink);
+}
+
+/* Shared circular accent submit button (composer, follow-up bar). */
+.submit-circle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--submit-size);
+  height: var(--submit-size);
+  border: 0;
+  border-radius: var(--radius-circle);
+  background: var(--accent);
+  color: var(--ink-on-accent);
+  box-shadow: var(--shadow-button);
+  transition: background-color var(--motion-duration) var(--motion-easing);
+}
+
+.submit-circle:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.submit-circle:disabled {
+  opacity: 0.45;
+}
+
+.submit-circle--small {
+  width: var(--submit-size-small);
+  height: var(--submit-size-small);
+  box-shadow: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

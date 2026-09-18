@@ -1,10 +1,19 @@
 // Shared constants — no magic values in components.
 
-import type { ClaimStatus, ResearchStatus, StageName } from "./api/types";
+import type {
+  ClaimStatus,
+  ResearchDepth,
+  ResearchStatus,
+  SourceType,
+  StageName,
+} from "./api/types";
+import { API_ORIGIN } from "./runtimeConfig";
 
-export const API_BASE_PATH = "/api/research";
-export const AUTH_TOKEN_PATH = "/auth/token";
-export const AUTH_SIGNUP_PATH = "/auth/signup";
+// API_ORIGIN is empty in the default same-origin deployment, so these stay the
+// relative paths the dev-server proxy and the nginx image both expect.
+export const API_BASE_PATH = `${API_ORIGIN}/api/research`;
+export const AUTH_TOKEN_PATH = `${API_ORIGIN}/auth/token`;
+export const AUTH_SIGNUP_PATH = `${API_ORIGIN}/auth/signup`;
 
 // Path segment for the live-progress SSE endpoint (GET /api/research/{id}/events).
 export const RESEARCH_EVENTS_PATH_SEGMENT = "/events";
@@ -20,6 +29,66 @@ export const AUTH_EMAIL_STORAGE_KEY = "research_agent_account_email";
 // Backend minimum password length (apps/api/routes_auth.py::MIN_PASSWORD_LENGTH),
 // mirrored here so the signup form validates inline before submitting.
 export const MIN_PASSWORD_LENGTH = 8;
+
+// Product name and copy shared across the shell and the auth screens
+// (design_handoff_research_agent/README.md).
+export const BRAND_NAME = "Lantern";
+
+export const HISTORY_SEARCH_PLACEHOLDER = "Search history";
+
+// lucide-react's default stroke is 2px, which reads heavy next to this
+// design's hairlines and 400/500 type.
+export const ICON_STROKE_WIDTH = 1.75;
+
+// Depth: the design's three-segment control. "Balanced" is the backend's
+// `normal` (src/models/schemas.py::ResearchDepth).
+export interface DepthOption {
+  value: ResearchDepth;
+  label: string;
+}
+
+export const DEPTH_OPTIONS: DepthOption[] = [
+  { value: "fast", label: "Fast" },
+  { value: "normal", label: "Balanced" },
+  { value: "deep", label: "Deep" },
+];
+
+export const DEFAULT_DEPTH: ResearchDepth = "normal";
+
+export const DEPTH_LABELS: Record<ResearchDepth, string> = {
+  fast: "Fast",
+  normal: "Balanced",
+  deep: "Deep",
+};
+
+// Source chips, in the design's order. Labels are the design's; values are
+// the backend's SourceType members.
+export interface SourceTypeOption {
+  value: SourceType;
+  label: string;
+}
+
+export const SOURCE_TYPE_OPTIONS: SourceTypeOption[] = [
+  { value: "web", label: "Web" },
+  { value: "documentation", label: "Docs" },
+  { value: "paper", label: "Papers" },
+  { value: "arxiv", label: "arXiv" },
+  { value: "github", label: "GitHub" },
+  { value: "reddit", label: "Reddit" },
+];
+
+export const DEFAULT_SOURCE_TYPES: SourceType[] = ["web", "documentation", "paper"];
+
+// Prefill-and-run chips under the composer.
+export const SUGGESTED_QUESTIONS: string[] = [
+  "Which open model is cheapest per resolved ticket?",
+  "Summarize the 2026 EU AI Act deployer duties",
+  "Best RAG eval harness for support transcripts",
+];
+
+// How many sources the report's "Key sources" grid shows, highest quality
+// score first.
+export const KEY_SOURCE_COUNT = 4;
 
 export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
   verified: "Verified",

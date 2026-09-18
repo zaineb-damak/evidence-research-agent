@@ -1,88 +1,112 @@
 /*
- * Report view (react-markdown based). Serif body per the established type
- * scale, contained line length so long-form report text stays readable.
+ * The brief: Newsreader prose with raised citation markers
+ * (lib/citationMarkers.ts turns "[1] [2]" into .report__citation).
  */
 
 .report {
-  max-width: 760px;
   font-family: var(--font-serif);
-  font-size: var(--text-body-report-size);
-  line-height: var(--text-body-report-line);
-  color: var(--ink);
+  font-size: var(--text-prose);
+  line-height: var(--leading-prose);
+  color: var(--ink-prose);
 }
 
 .report h1,
 .report h2,
 .report h3 {
   font-family: var(--font-sans);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   color: var(--ink);
-  margin-top: var(--space-6);
-  margin-bottom: var(--space-3);
+  margin-top: var(--space-30);
+  margin-bottom: var(--space-12);
 }
 
 .report h1 {
-  font-size: var(--text-h1-size);
-  line-height: var(--text-h1-line);
+  font-size: var(--text-15-5);
 }
 
 .report h2 {
-  font-size: var(--text-h2-size);
-  line-height: var(--text-h2-line);
+  font-size: var(--text-14);
 }
 
 .report h3 {
-  font-size: var(--text-ui-label-size);
-  line-height: var(--text-ui-label-line);
+  font-size: var(--text-13-5);
+}
+
+.report > :first-child {
+  margin-top: 0;
+}
+
+/* The synthesizer opens every report with "# Research Report"
+   (src/agents/synthesizer.py); the page already titles the run with the
+   question, so that line would be a second, emptier title. */
+.report > h1:first-child {
+  display: none;
 }
 
 .report p {
-  margin-bottom: var(--space-4);
-  max-width: 80ch;
+  margin-bottom: var(--space-16);
 }
 
 .report ul,
 .report ol {
-  list-style: initial;
-  padding-left: var(--space-5);
-  margin-bottom: var(--space-4);
+  list-style: disc;
+  padding-left: var(--space-22);
+  margin-bottom: var(--space-18);
+}
+
+.report ol {
+  list-style: decimal;
 }
 
 .report li {
-  margin-bottom: var(--space-1);
+  margin-bottom: var(--space-7);
+}
+
+.report strong {
+  font-weight: var(--weight-medium);
 }
 
 .report table {
+  width: 100%;
   border-collapse: collapse;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-18);
   font-family: var(--font-sans);
-  font-size: var(--text-body-ui-size);
+  font-size: var(--text-13);
 }
 
 .report th,
 .report td {
-  border: 1px solid var(--line);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--hairline-card);
   text-align: left;
 }
 
-.report code {
-  font-family: var(--font-mono);
-  font-size: var(--text-mono-size);
+.report th {
+  font-weight: var(--weight-medium);
   background: var(--paper-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 0 4px;
 }
 
-/* Citation links get a distinct treatment from body prose. */
+.report code {
+  padding: 0 var(--space-4);
+  border: 1px solid var(--hairline-card);
+  border-radius: var(--radius-4);
+  background: var(--paper-raised);
+  font-family: var(--font-mono);
+  font-size: var(--text-13);
+}
+
 .report a {
   font-family: var(--font-sans);
-  color: var(--verified);
+  font-size: var(--text-14);
+  color: var(--accent-text);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.report a:hover {
-  opacity: 0.85;
+/* Citation markers raised out of the prose. */
+.report__citation {
+  padding-left: var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-10);
+  color: var(--accent);
 }

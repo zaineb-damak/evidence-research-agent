@@ -1,31 +1,38 @@
-// The finished-job view: a Report/Evidence tab pair (mirroring the old
-// App.tsx's tab behavior) backed by useResearchResults, so revisiting a
-// completed session from history is instant once cached.
+// A finished run's output: the key sources it read, then the cited brief —
+// with the evidence explorer one segment away, since every claim in the
+// brief traces back to a source passage.
 
 import { useState } from "react";
 
 import { useResearchResults } from "../../hooks/useResearchResults";
 import { EvidenceExplorer } from "./EvidenceExplorer";
+import { KeySources } from "./KeySources";
 import { ReportView } from "./ReportView";
 
-type ResultsTab = "report" | "evidence";
+type ResultsTab = "brief" | "evidence";
 
-const REPORT_TAB_LABEL = "Report";
-const EVIDENCE_TAB_LABEL = "Evidence";
+const TABS: { value: ResultsTab; label: string }[] = [
+  { value: "brief", label: "Brief" },
+  { value: "evidence", label: "Evidence" },
+];
+
+const DEFAULT_TAB: ResultsTab = "brief";
 const LOADING_MESSAGE = "Loading results…";
 const ERROR_MESSAGE = "Couldn't load the results for this research job.";
+const TABS_LABEL = "Result view";
 
 interface ResearchResultsViewProps {
   researchId: string;
 }
 
 export function ResearchResultsView({ researchId }: ResearchResultsViewProps) {
-  const [activeTab, setActiveTab] = useState<ResultsTab>("report");
+  const [activeTab, setActiveTab] = useState<ResultsTab>(DEFAULT_TAB);
   const results = useResearchResults(researchId, true);
 
   if (results.isLoading) {
-    return <p className="research-results__status">{LOADING_MESSAGE}</p>;
+    return <p className="research-view__status">{LOADING_MESSAGE}</p>;
   }
+
   const report = results.report.data;
   const claims = results.claims.data;
   const sources = results.sources.data;
@@ -37,37 +44,36 @@ export function ResearchResultsView({ researchId }: ResearchResultsViewProps) {
     sources === undefined ||
     graph === undefined
   ) {
-    return <p className="research-results__status">{ERROR_MESSAGE}</p>;
+    return <p className="research-view__status">{ERROR_MESSAGE}</p>;
   }
 
   return (
-    <div className="research-results">
-      <nav className="research-results__tabs" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "report"}
-          className={`research-results__tab${activeTab === "report" ? " research-results__tab--active" : ""}`}
-          onClick={() => setActiveTab("report")}
-        >
-          {REPORT_TAB_LABEL}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "evidence"}
-          className={`research-results__tab${activeTab === "evidence" ? " research-results__tab--active" : ""}`}
-          onClick={() => setActiveTab("evidence")}
-        >
-          {EVIDENCE_TAB_LABEL}
-        </button>
-      </nav>
+    <>
+      <KeySources sources={sources} />
 
-      {activeTab === "report" ? (
+      <div className="segmented research-view__tabs" role="tablist" aria-label={TABS_LABEL}>
+        {TABS.map((tab) => {
+          const isActive = tab.value === activeTab;
+          return (
+            <button
+              key={tab.value}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              className={`segmented__segment${isActive ? " segmented__segment--active" : ""}`}
+              onClick={() => setActiveTab(tab.value)}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === "brief" ? (
         <ReportView reportMarkdown={report.report} />
       ) : (
         <EvidenceExplorer claims={claims} sources={sources} graph={graph} />
       )}
-    </div>
+    </>
   );
 }

@@ -24,9 +24,13 @@ Built in stacked branches, one phase per branch:
 3. **Clear, self-explanatory names.** No abbreviations that aren't obvious. A
    reader should understand a variable from its name without context.
 4. **All API endpoints require authentication.** Every data route depends on
-   `require_user` (JWT) from `apps/api/auth.py`. The two unauthenticated routes
-   are `POST /auth/token`, which issues the token, and `POST /auth/signup`,
-   which creates an account and auto-issues one.
+   `require_user` (JWT) from `apps/api/auth.py`. The unauthenticated routes are
+   `POST /auth/token`, which issues the token; `POST /auth/signup`, which
+   creates an account and auto-issues one; and the three operational routes in
+   `apps/api/routes_health.py` — `GET /health/live`, `GET /health/ready` and
+   `GET /metrics`. The kubelet cannot present a JWT when probing a pod and
+   Prometheus scrapes without a user identity; those routes expose no research
+   data and the Ingress never routes to them.
 5. **Structured, clean code.** Small, single-responsibility functions.
 6. **Helper functions live in separate files.** Keep agents/workflows focused on
    orchestration; put reusable helpers in their own module (e.g. `src/text/`,
@@ -53,14 +57,19 @@ src/llm/          base (StructuredLLM) + factory + chains + usage + caching
 src/embeddings/   LangChain Embeddings factory (no wrapper)
 src/text/         hashing, tokenize, nested
 src/exceptions.py central exception hierarchy + messages
-src/observability/ OTel tracing + Langfuse handler
+src/health/      dependency probes behind GET /health/ready
+src/observability/ OTel tracing + Langfuse handler + structlog logging + Prometheus metrics
 src/realtime/     Redis pub/sub channel naming + transport for live progress events
 src/workflows/    graph assembly (research) + nodes + progress_emitter + cost + routing
                   + checkpoint + deps
-apps/api/         FastAPI service (JWT-authenticated) + auth + routes_auth + jobs + events
+apps/api/         FastAPI service (JWT-authenticated) + auth + routes_auth + routes_health
+                  + jobs + events + middleware (request id, access log, HTTP metrics)
 apps/worker/      Celery worker + progress sink
-apps/web/         React UI (JWT login)
+apps/web/         React UI ("Lantern" design system) + runtimeConfig (runtime API base URL)
 scripts/          create_user, generate_graph_diagram
+infra/docker/     python.Dockerfile (targets: api, worker), web.Dockerfile, nginx config
+infra/k8s/chart/  Helm chart — the deployment target
+.github/          CI, release/deploy, security workflows + helm-deploy.sh
 ```
 
 ## LangChain conventions (Phase 8)
@@ -134,6 +143,75 @@ seam or `generate_structured` loop:
   streams those as SSE, authenticated like every other route, starting with a
   `SNAPSHOT` of the persisted state so a client reconnecting mid-run or after
   completion is never stuck waiting.
+
+## Deployment (Phase 9)
+
+Kubernetes is the deployment target; `docker compose` is for development and for
+smoke-testing the images CI publishes. Fuller notes live in `docs/DEPLOYMENT.md`
+and `docs/DEPLOYMENT_WALKTHROUGH.md` — both local-only, since `docs/` is
+gitignored, so treat this section as the tracked source of truth.
+
+- **Images** — `infra/docker/python.Dockerfile` builds both `api` and `worker`
+  from one file via `--target`, so they share every layer up to `runtime`.
+  `infra/docker/web.Dockerfile` builds the SPA and serves it from
+  nginx-unprivileged. Migrations reuse the **api** image with
+  `alembic upgrade head`; there is no separate migration image.
+- **Everything runs non-root with a read-only root filesystem.** Anything that
+  writes gets an explicit `emptyDir` — this is why the web image has nginx
+  return `/config.js` from its config instead of writing the file.
+- **One image per environment, not one per deploy target.** The web bundle
+  holds no environment-specific values: the API base URL arrives at runtime via
+  `/config.js` (`apps/web/src/runtimeConfig.ts`). Empty means same-origin, which
+  is the default — nginx proxies `/api` and `/auth` to the API Service, so the
+  browser never needs CORS.
+- **Probes** — liveness (`/health/live`) must never touch a dependency, or one
+  database blip restarts every pod; readiness (`/health/ready`) probes all four
+  stores concurrently under a single shared deadline (`src/health/checks.py`).
+  The worker has no HTTP server, so its readiness is a TCP check on the metrics
+  port and its liveness is `celery inspect ping`.
+- **Migrations run as a Helm `pre-upgrade` hook**, before the new pods roll.
+  `--atomic` cannot un-run a migration, so every migration must be backward
+  compatible with the release already running (expand/contract). On the first
+  install the hook is `post-install` instead: a pre-install hook runs before
+  any release object exists and hangs waiting for its own ServiceAccount,
+  Secrets and Postgres.
+- **Config plumbing** — settings reach pods through a ConfigMap plus two
+  Secrets: `-connection` is always chart-owned and holds values the chart
+  *derives* (the Postgres DSN, the Neo4j password) so a workload never knows
+  whether a store is in-cluster or managed; `-credentials` holds API keys and
+  is replaced by `secrets.existingSecret` anywhere shared.
+- **The in-chart datastores are for development and staging only** — single
+  replica, no failover, no backups. `values-prod.yaml` disables all four and
+  points at managed endpoints, with `REPLACE_ME` placeholders that
+  `.github/scripts/helm-deploy.sh` refuses to deploy.
+
+## Web UI (Phase 10)
+
+`apps/web/` implements the "Lantern" handoff in
+`design_handoff_research_agent/` (untracked bundle; the README there is the
+spec). Rules that keep it consistent:
+
+- **Tokens first.** `src/styles/tokens.css` is the only file holding color,
+  type, spacing, radius, shadow or size literals; spacing/radius tokens are
+  named by pixel value (`--space-13`). Stylesheets are plain CSS with BEM-ish
+  class names, one per area (`shell`, `auth`, `research`, `report`).
+- **Shell.** `AppShell` is sidebar + main column; each page renders its own
+  `MainHeader` (title, status pill, Share/Export) because the title is page
+  state. Below 768px the sidebar is an overlay drawer, opened from the header
+  through `SidebarContext`.
+- **Pure helpers, not component logic**: `lib/sessionGroups.ts` (history
+  filtering + Today / Previous 7 days / Older), `lib/planSteps.ts` (the six
+  pipeline stages folded into the plan card's five steps),
+  `lib/sourceCards.ts`, `lib/citationMarkers.ts` (remark plugin raising
+  `[1] [2]` into superscripts, skipping the report's Sources section).
+- **Icons** are `lucide-react` at `ICON_STROKE_WIDTH`; the brand mark,
+  favicons and avatar stay placeholder shapes until real assets exist.
+- **Deliberate deviations from the handoff** (no backend for them): no OAuth
+  buttons, no "Forgot?" link, no signup Name field, no plan/quota line
+  (the account footer shows the real run count), Share/Export rendered
+  disabled, and a follow-up starts a new run carrying the current run's
+  depth. Copy that asserted untrue things (free-run quota, editing a plan
+  mid-run, Terms/Privacy) was cut or reworded.
 
 ## Testing
 

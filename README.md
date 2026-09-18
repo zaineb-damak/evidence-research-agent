@@ -270,7 +270,10 @@ even after a hard crash.
 
 ## Frontend
 
-A React + TypeScript app (`apps/web/`, Vite) with route-level code split
+A React + TypeScript app (`apps/web/`, Vite) built to the "Lantern" design
+handoff — a research composer (question, depth, source chips) that opens
+into a run view: the agent's plan with live step state, the key sources it
+read, and the cited brief. Route-level code is split
 between an unauthenticated shell (login/signup) and an authenticated one
 (`AppShell` + session sidebar). `AuthContext` holds the JWT and drives
 `RequireAuth`; `useResearchStream` opens the SSE connection for a running
@@ -308,8 +311,11 @@ in CI can run against live providers in a scheduled job.
 | Embeddings | LangChain `Embeddings` — OpenAI / Voyage |
 | Search sources | Tavily, arXiv, Semantic Scholar, GitHub, Reddit, YouTube, generic API |
 | Frontend | React + TypeScript (Vite), SSE client, React Router |
-| Observability | OpenTelemetry stage tracing, optional Langfuse callback |
+| Observability | OpenTelemetry stage tracing, optional Langfuse callback, structlog JSON logs, Prometheus metrics |
 | Testing | `pytest`, dependency-injected fakes for every external service |
+| Packaging | Multi-stage Docker images, non-root with read-only root filesystems |
+| Deployment | Helm chart (`infra/k8s/chart`), cloud-agnostic Kubernetes |
+| CI/CD | GitHub Actions — test, scan, sign, deploy staging on `main` and production on a tag |
 
 ## Quick start
 
@@ -336,6 +342,52 @@ curl -X POST localhost:8000/api/research \
 
 Poll `GET /api/research/{id}`, or open `GET /api/research/{id}/events` for
 live progress, then read `GET /api/research/{id}/report`.
+
+## Running the whole stack in containers
+
+```bash
+docker compose --profile app up -d      # databases + api, worker, web, migrations
+```
+
+Then open http://127.0.0.1:5173. The `app` profile keeps the plain
+`docker compose up -d` above unchanged, so it still starts only the databases.
+
+## Deployment
+
+Kubernetes is the deployment target. A Helm chart at `infra/k8s/chart` installs
+the API, the worker, the web UI and — for development and staging — the four
+datastores; `values-prod.yaml` switches those off and points at managed
+endpoints instead.
+
+```bash
+helm upgrade --install research-agent infra/k8s/chart \
+  --namespace research-agent --create-namespace \
+  --values infra/k8s/chart/values-staging.yaml \
+  --set image.tag="$GIT_SHA"
+```
+
+Every container runs as a non-root user with a read-only root filesystem.
+Alembic runs as a pre-upgrade Helm hook, so no pod serves traffic against a
+schema it does not expect — which makes backward-compatible (expand/contract)
+migrations a hard requirement.
+
+GitHub Actions builds, scans and signs the images, deploys `main` to staging
+automatically, and deploys a `v*` tag to production behind a manual approval.
+
+The chart's templates carry the reasoning inline — every non-obvious choice
+(probe design, migration ordering, shutdown windows) is commented where it is
+made. Longer deployment notes are kept locally in `docs/`, which is not tracked.
+
+## Operational endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /health/live` | liveness — touches no dependency, so an outage never restarts pods |
+| `GET /health/ready` | readiness — probes Postgres, Redis, Neo4j and Qdrant concurrently |
+| `GET /metrics` | Prometheus exposition (the worker serves its own on `:9100`) |
+
+These three are the only unauthenticated routes besides `/auth/token` and
+`/auth/signup`; the Ingress never routes to them.
 
 ## Tests
 

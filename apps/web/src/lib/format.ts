@@ -49,7 +49,7 @@ const RELATIVE_DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   day: "numeric",
 };
 
-function startOfLocalDay(date: Date): Date {
+export function startOfLocalDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
@@ -82,4 +82,22 @@ export function formatRelativeTime(date: Date, now: Date = new Date()): string {
     return "Yesterday";
   }
   return date.toLocaleDateString(undefined, RELATIVE_DATE_FORMAT_OPTIONS);
+}
+
+const CLOCK_TIME_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
+  hour: "numeric",
+  minute: "2-digit",
+};
+
+const TODAY_PREFIX = "Today";
+const DATE_TIME_SEPARATOR = ", ";
+
+// The report meta row's timestamp: "Today, 9:41 PM" for a run started today,
+// otherwise "Sep 12, 9:41 PM".
+export function formatRunTimestamp(date: Date, now: Date = new Date()): string {
+  const time = date.toLocaleTimeString(undefined, CLOCK_TIME_FORMAT_OPTIONS);
+  const day = isToday(date, now)
+    ? TODAY_PREFIX
+    : date.toLocaleDateString(undefined, RELATIVE_DATE_FORMAT_OPTIONS);
+  return `${day}${DATE_TIME_SEPARATOR}${time}`;
 }

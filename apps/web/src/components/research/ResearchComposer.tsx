@@ -1,46 +1,47 @@
-// Adapted from the pre-router components/ResearchForm.tsx: same fields
-// (question, depth, source types) and submit contract, restyled per the
-// established design tokens and centered per the plan's wireframe. Owns its
-// own submitting/error state so pages/HomePage.tsx only has to hand it an
-// onSubmit that creates the job.
+// The empty / new-run state: heading, composer card (question, depth,
+// sources, submit) and the prefill-and-run suggestion chips. Depth is owned
+// by the page so the header pill can read it; question and source selection
+// are local.
 
+import { ArrowUp } from "lucide-react";
 import { useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 
 import type { CreateResearchInput } from "../../api/client";
 import type { ResearchDepth, SourceType } from "../../api/types";
+import {
+  DEFAULT_SOURCE_TYPES,
+  ICON_STROKE_WIDTH,
+  SUGGESTED_QUESTIONS,
+} from "../../constants";
+import { DepthSegmentedControl } from "./DepthSegmentedControl";
+import { SourceChipGroup } from "./SourceChipGroup";
 
-const DEPTH_OPTIONS: { value: ResearchDepth; label: string }[] = [
-  { value: "fast", label: "Fast" },
-  { value: "normal", label: "Normal" },
-  { value: "deep", label: "Deep" },
-];
-
-const SOURCE_TYPE_OPTIONS: { value: SourceType; label: string }[] = [
-  { value: "web", label: "Web" },
-  { value: "documentation", label: "Documentation" },
-  { value: "paper", label: "Papers" },
-  { value: "arxiv", label: "arXiv" },
-  { value: "github", label: "GitHub" },
-  { value: "reddit", label: "Reddit" },
-];
-
-const DEFAULT_SOURCE_TYPES: SourceType[] = ["web", "documentation", "paper"];
-const DEFAULT_DEPTH: ResearchDepth = "fast";
-
+const TITLE = "What do you want to research?";
+const SUBTITLE =
+  "Ask a question and the agent plans its own searches, reads the sources, and writes back a cited brief.";
 const QUESTION_PLACEHOLDER = "Compare Qwen, Llama and Mistral for customer support";
-const SUBMITTING_LABEL = "Starting…";
+const QUESTION_LABEL = "Research question";
 const SUBMIT_LABEL = "Start research";
 const GENERIC_SUBMIT_ERROR = "Couldn't start that research job. Try again in a moment.";
+const QUESTION_ROWS = 3;
+const SUBMIT_ICON_SIZE = 15;
+const SUBMIT_KEY = "Enter";
 
 interface ResearchComposerProps {
+  depth: ResearchDepth;
+  onDepthChange: (depth: ResearchDepth) => void;
   onSubmit: (input: CreateResearchInput) => Promise<void>;
   initialQuestion?: string;
 }
 
-export function ResearchComposer({ onSubmit, initialQuestion = "" }: ResearchComposerProps) {
+export function ResearchComposer({
+  depth,
+  onDepthChange,
+  onSubmit,
+  initialQuestion = "",
+}: ResearchComposerProps) {
   const [question, setQuestion] = useState(initialQuestion);
-  const [depth, setDepth] = useState<ResearchDepth>(DEFAULT_DEPTH);
   const [sourceTypes, setSourceTypes] = useState<SourceType[]>(DEFAULT_SOURCE_TYPES);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,9 +54,8 @@ export function ResearchComposer({ onSubmit, initialQuestion = "" }: ResearchCom
     );
   }
 
-  async function handleSubmit(event: FormEvent): Promise<void> {
-    event.preventDefault();
-    const trimmedQuestion = question.trim();
+  async function startRun(rawQuestion: string): Promise<void> {
+    const trimmedQuestion = rawQuestion.trim();
     if (trimmedQuestion === "" || isSubmitting) {
       return;
     }
@@ -70,68 +70,79 @@ export function ResearchComposer({ onSubmit, initialQuestion = "" }: ResearchCom
     }
   }
 
+  function handleSubmit(event: FormEvent): void {
+    event.preventDefault();
+    void startRun(question);
+  }
+
+  // Enter submits; Shift+Enter keeps the newline, as in the design's
+  // single-question composer.
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (event.key === SUBMIT_KEY && !event.shiftKey) {
+      event.preventDefault();
+      void startRun(question);
+    }
+  }
+
+  function handleSuggestion(suggestion: string): void {
+    setQuestion(suggestion);
+    void startRun(suggestion);
+  }
+
   return (
-    <div className="research-composer">
-      <h1 className="research-composer__title">What do you want to research?</h1>
-      <form className="research-composer__form" onSubmit={handleSubmit}>
-        <label className="research-composer__field">
-          <span className="research-composer__label">Research question</span>
+    <div className="composer-view">
+      <div className="composer-view__inner">
+        <h1 className="composer-view__title">{TITLE}</h1>
+        <p className="composer-view__subtitle">{SUBTITLE}</p>
+
+        <form className="composer-card" onSubmit={handleSubmit}>
+          <label className="visually-hidden" htmlFor="research-question">
+            {QUESTION_LABEL}
+          </label>
           <textarea
-            className="research-composer__textarea"
+            id="research-question"
+            className="composer-card__question"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder={QUESTION_PLACEHOLDER}
-            rows={3}
+            rows={QUESTION_ROWS}
           />
-        </label>
-
-        <div className="research-composer__row">
-          <label className="research-composer__field">
-            <span className="research-composer__label">Depth</span>
-            <select
-              className="research-composer__select"
-              value={depth}
-              onChange={(event) => setDepth(event.target.value as ResearchDepth)}
+          <div className="composer-card__controls">
+            <DepthSegmentedControl depth={depth} onChange={onDepthChange} />
+            <SourceChipGroup selected={sourceTypes} onToggle={toggleSourceType} />
+            <button
+              type="submit"
+              className="submit-circle"
+              aria-label={SUBMIT_LABEL}
+              title={SUBMIT_LABEL}
+              disabled={isSubmitting || question.trim() === ""}
             >
-              {DEPTH_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <fieldset className="research-composer__field research-composer__source-types">
-            <legend className="research-composer__label">Sources</legend>
-            <div className="research-composer__checkboxes">
-              {SOURCE_TYPE_OPTIONS.map((option) => (
-                <label key={option.value} className="research-composer__checkbox">
-                  <input
-                    type="checkbox"
-                    checked={sourceTypes.includes(option.value)}
-                    onChange={() => toggleSourceType(option.value)}
-                  />
-                  {option.label}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        </div>
+              <ArrowUp size={SUBMIT_ICON_SIZE} strokeWidth={ICON_STROKE_WIDTH} />
+            </button>
+          </div>
+        </form>
 
         {error !== null && (
-          <p className="research-composer__error" role="alert">
+          <p className="composer-view__error" role="alert">
             {error}
           </p>
         )}
 
-        <button
-          type="submit"
-          className="research-composer__submit"
-          disabled={isSubmitting || question.trim() === ""}
-        >
-          {isSubmitting ? SUBMITTING_LABEL : SUBMIT_LABEL}
-        </button>
-      </form>
+        <div className="suggestion-chips">
+          {SUGGESTED_QUESTIONS.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              className="suggestion-chip"
+              onClick={() => handleSuggestion(suggestion)}
+              disabled={isSubmitting}
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
