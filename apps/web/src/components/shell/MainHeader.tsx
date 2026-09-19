@@ -2,8 +2,9 @@
 // Share/Export actions. Rendered by each page (the title and pill are page
 // state) inside the AppShell's main column.
 //
-// Share and Export are disabled: the handoff leaves both flows undesigned and
-// there is no backend for either yet.
+// Export downloads the run's report as Markdown when the page hands in an
+// onExport handler. Share stays disabled: the handoff leaves the flow
+// undesigned and there is no sharing backend.
 
 import { Menu } from "lucide-react";
 
@@ -13,6 +14,7 @@ import { useSidebar } from "../../hooks/useSidebar";
 const SHARE_LABEL = "Share";
 const EXPORT_LABEL = "Export";
 const UNAVAILABLE_ACTION_TITLE = "Not available yet";
+const EXPORT_ACTION_TITLE = "Download the report as Markdown";
 const OPEN_SIDEBAR_LABEL = "Open sidebar";
 const MENU_ICON_SIZE = 16;
 
@@ -22,9 +24,17 @@ interface MainHeaderProps {
   title: string;
   badgeLabel: string;
   badgeTone?: HeaderBadgeTone;
+  // Omitted (or undefined) whenever there is nothing to export yet — a new
+  // run, or one that is still working.
+  onExport?: () => void;
 }
 
-export function MainHeader({ title, badgeLabel, badgeTone = "neutral" }: MainHeaderProps) {
+export function MainHeader({
+  title,
+  badgeLabel,
+  badgeTone = "neutral",
+  onExport,
+}: MainHeaderProps) {
   const { open } = useSidebar();
 
   return (
@@ -59,8 +69,9 @@ export function MainHeader({ title, badgeLabel, badgeTone = "neutral" }: MainHea
         <button
           type="button"
           className="main-header__action main-header__action--subtle"
-          disabled
-          title={UNAVAILABLE_ACTION_TITLE}
+          onClick={onExport}
+          disabled={onExport === undefined}
+          title={onExport === undefined ? UNAVAILABLE_ACTION_TITLE : EXPORT_ACTION_TITLE}
         >
           {EXPORT_LABEL}
         </button>

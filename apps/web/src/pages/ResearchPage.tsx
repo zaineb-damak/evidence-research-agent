@@ -6,15 +6,17 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { createResearch, getJobSummary } from "../api/client";
+import { createResearch, getJobSummary, getReport } from "../api/client";
 import { FollowUpComposer } from "../components/research/FollowUpComposer";
 import { ResearchPlanCard } from "../components/research/ResearchPlanCard";
 import { ResearchResultsView } from "../components/research/ResearchResultsView";
 import { MainHeader } from "../components/shell/MainHeader";
 import type { HeaderBadgeTone } from "../components/shell/MainHeader";
 import { DEFAULT_DEPTH, DEFAULT_SOURCE_TYPES, DEPTH_LABELS } from "../constants";
+import { researchResultsQueryKey } from "../hooks/useResearchResults";
 import { useResearchStream } from "../hooks/useResearchStream";
 import { useSessions, SESSIONS_QUERY_KEY } from "../hooks/useSessions";
+import { downloadMarkdown, reportFileName } from "../lib/download";
 import { formatRunTimestamp } from "../lib/format";
 import { isTerminalStreamStatus, streamStateFromStatus } from "../lib/researchEvents";
 import { buildResearchPath, ROUTE_HOME } from "../routes";
@@ -76,8 +78,24 @@ export function ResearchPage() {
     [id, snapshotIsTerminal, snapshotStatus, snapshotQuery.data?.error, stream.state],
   );
 
+  // Same query key as the results view's report query, so the header's
+  // Export button reuses the fetched report rather than asking again.
+  const isComplete = snapshotStatus === COMPLETED_STATUS;
+  const reportQuery = useQuery({
+    queryKey: researchResultsQueryKey("report", id),
+    queryFn: () => getReport(id),
+    enabled: isComplete,
+  });
+
   const session = sessionsQuery.data?.find((item) => item.research_id === id);
   const depth = session?.depth ?? DEFAULT_DEPTH;
+
+  function handleExport(): void {
+    if (reportQuery.data === undefined || snapshotQuery.data === undefined) {
+      return;
+    }
+    downloadMarkdown(reportFileName(snapshotQuery.data.question), reportQuery.data.report);
+  }
 
   function handleRetry(): void {
     navigate(ROUTE_HOME, { state: { prefillQuestion: snapshotQuery.data?.question ?? "" } });
@@ -129,7 +147,12 @@ export function ResearchPage() {
 
   return (
     <div className="app-shell__content">
-      <MainHeader title={summary.question} badgeLabel={badgeLabel} badgeTone={badgeTone} />
+      <MainHeader
+        title={summary.question}
+        badgeLabel={badgeLabel}
+        badgeTone={badgeTone}
+        onExport={reportQuery.data === undefined ? undefined : handleExport}
+      />
 
       <div className="research-view">
         <div className="research-view__body">

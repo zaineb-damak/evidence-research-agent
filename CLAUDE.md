@@ -206,12 +206,16 @@ spec). Rules that keep it consistent:
   `[1] [2]` into superscripts, skipping the report's Sources section).
 - **Icons** are `lucide-react` at `ICON_STROKE_WIDTH`; the brand mark,
   favicons and avatar stay placeholder shapes until real assets exist.
+- **Export** downloads the run's report markdown client-side
+  (`lib/download.ts`); the page passes `onExport` to `MainHeader` only once
+  the report query has data, and reuses that query's cache key so nothing is
+  fetched twice.
 - **Deliberate deviations from the handoff** (no backend for them): no OAuth
   buttons, no "Forgot?" link, no signup Name field, no plan/quota line
-  (the account footer shows the real run count), Share/Export rendered
-  disabled, and a follow-up starts a new run carrying the current run's
-  depth. Copy that asserted untrue things (free-run quota, editing a plan
-  mid-run, Terms/Privacy) was cut or reworded.
+  (the account footer shows the real run count), Share rendered disabled,
+  and a follow-up starts a new run carrying the current run's depth. Copy
+  that asserted untrue things (free-run quota, editing a plan mid-run,
+  Terms/Privacy) was cut or reworded.
 
 ## Testing
 
