@@ -6,6 +6,7 @@ import httpx
 
 from src.models.schemas import SourceType
 from src.sources.base import RawResult, SourceConnector
+from src.sources.failures import record_connector_failure
 
 GITHUB_DOMAIN = "github.com"
 STARS_SORT = "stars"
@@ -42,7 +43,8 @@ class GitHubConnector(SourceConnector):
                 timeout=REQUEST_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
-        except Exception:
+        except Exception as error:
+            record_connector_failure(self.source_type.value, error)
             return []
 
         results: list[RawResult] = []

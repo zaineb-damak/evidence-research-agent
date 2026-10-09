@@ -9,6 +9,7 @@ import httpx
 
 from src.models.schemas import SourceType
 from src.sources.base import RawResult, SourceConnector
+from src.sources.failures import record_connector_failure
 
 RELEVANCE_SORT = "relevance"
 REQUEST_TIMEOUT_SECONDS = 20.0
@@ -38,7 +39,8 @@ class ArxivConnector(SourceConnector):
                 timeout=REQUEST_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
-        except Exception:
+        except Exception as error:
+            record_connector_failure(self.source_type.value, error)
             return []
 
         feed = feedparser.parse(response.text)

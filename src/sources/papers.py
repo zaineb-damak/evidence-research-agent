@@ -8,6 +8,7 @@ import httpx
 
 from src.models.schemas import SourceType
 from src.sources.base import RawResult, SourceConnector
+from src.sources.failures import record_connector_failure
 
 SEMANTIC_SCHOLAR_DOMAIN = "semanticscholar.org"
 PAPER_FIELDS = "title,abstract,url,year,authors,venue"
@@ -35,7 +36,8 @@ class SemanticScholarConnector(SourceConnector):
                 timeout=REQUEST_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
-        except Exception:
+        except Exception as error:
+            record_connector_failure(self.source_type.value, error)
             return []
 
         results: list[RawResult] = []

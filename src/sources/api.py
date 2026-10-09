@@ -13,6 +13,7 @@ import httpx
 
 from src.models.schemas import SourceType
 from src.sources.base import RawResult, SourceConnector
+from src.sources.failures import record_connector_failure
 from src.text.nested import dig_nested
 
 DEFAULT_QUERY_PARAM = "q"
@@ -52,7 +53,8 @@ class GenericApiConnector(SourceConnector):
                 timeout=REQUEST_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
-        except Exception:
+        except Exception as error:
+            record_connector_failure(self.source_type.value, error)
             return []
 
         items = dig_nested(response.json(), self._config.results_path) or []

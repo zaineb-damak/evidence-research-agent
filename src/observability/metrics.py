@@ -30,6 +30,8 @@ DIRECTION_LABEL = "direction"
 SERVICE_LABEL = "service"
 ENVIRONMENT_LABEL = "environment"
 VERSION_LABEL = "version"
+CONNECTOR_LABEL = "connector"
+REASON_LABEL = "reason"
 
 TOKENS_IN_DIRECTION = "in"
 TOKENS_OUT_DIRECTION = "out"
@@ -88,6 +90,14 @@ RESEARCH_JOB_TOKENS_TOTAL = Counter(
     [DIRECTION_LABEL],
 )
 
+# Connectors fail open (a run continues without that source), so this counter
+# is the only signal that a source type is quietly missing from every report.
+SOURCE_CONNECTOR_FAILURES_TOTAL = Counter(
+    "source_connector_failures_total",
+    "Source searches that failed and returned no results, by connector and reason.",
+    [CONNECTOR_LABEL, REASON_LABEL],
+)
+
 
 def set_app_info(settings: Settings | None = None) -> None:
     settings = settings or get_settings()
@@ -119,6 +129,12 @@ def observe_research_job(
     RESEARCH_JOB_COST_USD_TOTAL.inc(cost_usd)
     RESEARCH_JOB_TOKENS_TOTAL.labels(**{DIRECTION_LABEL: TOKENS_IN_DIRECTION}).inc(tokens_in)
     RESEARCH_JOB_TOKENS_TOTAL.labels(**{DIRECTION_LABEL: TOKENS_OUT_DIRECTION}).inc(tokens_out)
+
+
+def observe_connector_failure(connector: str, reason: str) -> None:
+    SOURCE_CONNECTOR_FAILURES_TOTAL.labels(
+        **{CONNECTOR_LABEL: connector, REASON_LABEL: reason}
+    ).inc()
 
 
 def render_latest() -> tuple[bytes, str]:

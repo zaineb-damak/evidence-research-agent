@@ -7,6 +7,7 @@ import praw
 from src.clock import from_timestamp
 from src.models.schemas import SourceType
 from src.sources.base import RawResult, SourceConnector
+from src.sources.failures import record_connector_failure
 
 ALL_SUBREDDITS = "all"
 SNIPPET_MAX_CHARS = 500
@@ -55,6 +56,7 @@ class RedditConnector(SourceConnector):
                         extra={"score": post.score, "subreddit": str(post.subreddit)},
                     )
                 )
-        except Exception:
+        except Exception as error:
+            record_connector_failure(self.source_type.value, error)
             return results
         return results
