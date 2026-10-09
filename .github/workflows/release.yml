@@ -62,7 +62,7 @@ jobs:
 
       - name: Derive tags
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ steps.name.outputs.value }}
           # Every image is tagged with the commit SHA so a running pod can
