@@ -10,7 +10,7 @@
 # is promoted from staging to production unchanged.
 
 ARG NODE_VERSION=22
-ARG NGINX_VERSION=1.27
+ARG NGINX_VERSION=1.30
 
 # --- builder -----------------------------------------------------------------
 
@@ -55,8 +55,13 @@ ENV NGINX_ENVSUBST_FILTER="^(APP_|WEB_PORT)"
 # them: letting COPY --chmod create them applies that file mode to the parent
 # directory too, and a 0644 directory cannot be traversed by the nginx user —
 # the template is then silently skipped and nginx serves its stock config.
+#
+# `apk upgrade` applies Alpine security fixes published since the base image
+# was last rebuilt; the image scan otherwise fails on OS packages that already
+# have a fixed version available.
 USER root
-RUN mkdir --parents /etc/nginx/templates /etc/nginx/snippets \
+RUN apk upgrade --no-cache \
+ && mkdir --parents /etc/nginx/templates /etc/nginx/snippets \
  && chmod 0755 /etc/nginx/templates /etc/nginx/snippets
 
 COPY --chmod=0644 infra/docker/nginx-default.conf.template \
