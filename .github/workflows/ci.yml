@@ -152,7 +152,7 @@ jobs:
       # amd64 only here. Multi-arch is a release concern; emulating arm64 on a
       # CI runner roughly triples the build for no extra signal.
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
