@@ -66,7 +66,8 @@ apps/api/         FastAPI service (JWT-authenticated) + auth + routes_auth + rou
                   + jobs + events + middleware (request id, access log, HTTP metrics)
 apps/worker/      Celery worker + progress sink
 apps/web/         React UI ("Lantern" design system) + runtimeConfig (runtime API base URL)
-scripts/          create_user, generate_graph_diagram
+scripts/          create_user, generate_graph_diagram, smoke_test (live end-to-end check)
+assets/           README screenshots (captured from real runs)
 infra/docker/     python.Dockerfile (targets: api, worker), web.Dockerfile, nginx config
 infra/k8s/chart/  Helm chart — the deployment target
 .github/          CI, release/deploy, security workflows + helm-deploy.sh
