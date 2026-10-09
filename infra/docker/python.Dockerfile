@@ -110,5 +110,10 @@ EXPOSE ${WORKER_METRICS_PORT}
 # /metrics (see apps/worker/celery_app.py).
 CMD ["sh", "-c", "exec celery -A apps.worker.celery_app worker --loglevel=INFO --pool=threads --concurrency=${WORKER_CONCURRENCY}"]
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD ["sh", "-c", "celery -A apps.worker.celery_app inspect ping --destination \"celery@$HOSTNAME\""]
+# Ping through the broker alone (-b), not the app (-A): importing the app pulls
+# in the whole LangChain stack, which takes longer than the timeout on a small
+# node. Each timed-out check then left an orphaned ~400 MB process behind, and
+# the pile-up starved the worker it was meant to watch. `exec` makes the ping
+# the process Docker kills when the timeout fires.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD ["sh", "-c", "exec celery -b \"$REDIS_URL\" inspect ping --destination \"celery@$HOSTNAME\" --timeout 5"]

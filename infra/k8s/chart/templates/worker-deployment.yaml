@@ -85,12 +85,14 @@ spec:
           # Liveness asks Celery itself, because a worker can hold its socket
           # open while its consumer has stopped. Generous timings: the check
           # round-trips through Redis and must not fire during a busy moment.
+          # Broker-only (-b), never -A: importing the app costs ~400 MB and
+          # longer than the probe timeout, inside the worker's memory limit.
           livenessProbe:
             exec:
               command:
                 - sh
                 - -c
-                - celery -A apps.worker.celery_app inspect ping --destination "celery@$HOSTNAME" --timeout 10
+                - exec celery -b "$REDIS_URL" inspect ping --destination "celery@$HOSTNAME" --timeout 10
             initialDelaySeconds: 60
             periodSeconds: 60
             timeoutSeconds: 20

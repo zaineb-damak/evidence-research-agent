@@ -61,6 +61,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+      # A cold first start (store creation, JVM warm-up) can take minutes on a
+      # memory-constrained Docker VM; failures in this window don't count.
+      start_period: 180s
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -95,11 +98,14 @@ services:
 
   migrate:
     profiles: ["app"]
+    # Same build as `api` (migrations reuse the api image), but deliberately no
+    # shared `image:` tag: two services building one tag in parallel race on a
+    # fresh clone and fail with "image already exists". The layers are cached,
+    # so this second build costs nothing.
     build:
       context: .
       dockerfile: infra/docker/python.Dockerfile
       target: api
-    image: research-agent-api:local
     command: ["alembic", "upgrade", "head"]
     env_file: *app-env-file
     environment: *app-environment
@@ -158,8 +164,15 @@ services:
       - "5173:8080"
     environment:
       APP_API_UPSTREAM: http://api:8000
+    # nginx resolves the `api` hostname once, at startup. Recreating `api` gives
+    # it a new IP, so without `restart: true` the proxy keeps dialling the old
+    # one and every /api call is a 502. `restart: true` covers `up -d`; a
+    # targeted `up -d api` skips dependents, so restart web after one. Kubernetes
+    # is unaffected: a Service's ClusterIP is stable across pod replacements.
     depends_on:
-      - api
+      api:
+        condition: service_started
+        restart: true
     restart: unless-stopped
 
 volumes:
