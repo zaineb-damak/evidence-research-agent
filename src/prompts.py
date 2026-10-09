@@ -56,7 +56,10 @@ _EXTRACTOR_SYSTEM = (
     "Only extract claims that are directly supported by a passage. Do not infer."
 )
 
-_EXTRACTOR_HUMAN = "Extract claims from these passages:\n\n{passages_block}"
+_EXTRACTOR_HUMAN = (
+    "Extract at most {max_claims} claims, most important first, from these "
+    "passages:\n\n{passages_block}"
+)
 
 EXTRACTOR_PROMPT = ChatPromptTemplate.from_messages(
     [("system", _EXTRACTOR_SYSTEM), ("human", _EXTRACTOR_HUMAN)]
@@ -66,12 +69,20 @@ EXTRACTOR_PROMPT = ChatPromptTemplate.from_messages(
 
 _SYNTHESIZER_SYSTEM = (
     "You write the executive summary of a research report. Answer the research "
-    "question using ONLY the verified claims listed by the user. You may organize "
-    "and phrase them, but you must not introduce any fact not present in that "
-    "list. Keep it concise and neutral."
+    "question using ONLY the claims listed by the user. You may organize and "
+    "phrase them, but you must not introduce any fact not present in that list. "
+    "Each claim ends with its verification status in brackets; let your wording "
+    "match it:\n"
+    "- verified: state it plainly.\n"
+    "- partially_supported: hedge it (\"sources suggest\", \"one source reports\") "
+    "and never call it verified or confirmed.\n"
+    "- conflicting: say the sources disagree.\n"
+    "Keep it concise and neutral."
 )
 
-_SYNTHESIZER_HUMAN = "Question: {question}\n\nVerified claims:\n{claim_lines}"
+_SYNTHESIZER_HUMAN = (
+    "Question: {question}\n\nClaims, each with its verification status:\n{claim_lines}"
+)
 
 SYNTHESIZER_SUMMARY_PROMPT = ChatPromptTemplate.from_messages(
     [("system", _SYNTHESIZER_SYSTEM), ("human", _SYNTHESIZER_HUMAN)]
