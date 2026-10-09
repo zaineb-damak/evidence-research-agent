@@ -53,7 +53,7 @@ def extract_claims(
     passages_block = "\n\n".join(blocks)
 
     chain = build_structured_chain(llm, EXTRACTOR_PROMPT, ExtractionOutput)
-    result_envelope = chain.invoke({"passages_block": passages_block})
+    result_envelope = chain.invoke({"passages_block": passages_block, "max_claims": max_claims})
     parsed: ExtractionOutput = result_envelope["parsed"]
     tokens_in, tokens_out = token_usage(result_envelope["raw"])
 

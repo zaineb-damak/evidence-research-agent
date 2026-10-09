@@ -28,6 +28,7 @@ from src.retrieval.index import PassageIndex, build_embedded_vectors
 from src.retrieval.pipeline import retrieve_top_passages
 from src.sources.base import SourceConnector
 from src.stores.graph import GraphStore
+from src.workflows.budget import NO_BUDGET, claim_budget_for_task
 from src.workflows.cost import billed_cost
 from src.workflows.progress_emitter import emit_stage_started, emit_substep
 
@@ -108,6 +109,11 @@ def extract_node(state: ResearchState, deps: Deps) -> dict[str, Any]:
     with stage_span(NodeName.EXTRACT):
         emit_stage_started(state.research_id, NodeName.EXTRACT)
         for tasks_done, task in enumerate(state.research_tasks, start=1):
+            claim_budget = claim_budget_for_task(
+                claim_cap, len(claims), tasks_remaining=tasks_total - tasks_done + 1
+            )
+            if claim_budget == NO_BUDGET:
+                break
             top_passage_ids = retrieve_top_passages(
                 state.research_id,
                 task.sub_question,
@@ -121,7 +127,7 @@ def extract_node(state: ResearchState, deps: Deps) -> dict[str, Any]:
                 if passage_id in passage_text_by_id
             ]
             extraction, tokens_in, tokens_out = extract_claims(
-                deps.llm, selected_passages, claim_cap
+                deps.llm, selected_passages, claim_budget
             )
             record_usage(cost, deps.llm.model, tokens_in, tokens_out)
             claims.extend(extraction.claims)
@@ -137,11 +143,9 @@ def extract_node(state: ResearchState, deps: Deps) -> dict[str, Any]:
                     "claims_extracted": len(claims),
                 },
             )
-            if len(claims) >= claim_cap:
-                break
 
     return {
-        "claims": claims[:claim_cap],
+        "claims": claims,
         "evidence": evidence,
         "entities": entities,
         "cost": cost,
