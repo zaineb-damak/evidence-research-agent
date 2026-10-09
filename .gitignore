@@ -20,9 +20,17 @@ evals/reports/*.json
 *.sqlite
 *.db
 
+# Documentation is kept local, not tracked. README.md is the only doc in git;
+# CLAUDE.md stays tracked because it is the agent's instruction file, not prose.
+docs/
+
+# Design handoff bundle — reference material kept local, not tracked.
+design_handoff_research_agent/
+
 # Node / web
 apps/web/node_modules/
 apps/web/dist/
+*.tsbuildinfo
 
 # OS / editor
 .DS_Store

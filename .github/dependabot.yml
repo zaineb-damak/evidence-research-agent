@@ -1,0 +1,55 @@
+version: 2
+
+updates:
+  # Python. The `uv` ecosystem updates pyproject.toml *and* uv.lock together,
+  # which matters because CI installs with --frozen and fails on any drift.
+  # If the uv ecosystem is unavailable, switch this entry to `pip`; that keeps
+  # working but leaves the lockfile to be refreshed by hand.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # LangChain ships its packages in lockstep; splitting them across PRs
+      # produces combinations that were never tested together.
+      langchain:
+        patterns:
+          - "langchain*"
+          - "langgraph*"
+      dev-tooling:
+        patterns:
+          - "pytest*"
+          - "ruff"
+          - "mypy"
+
+  - package-ecosystem: npm
+    directory: /apps/web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react*"
+      dev-tooling:
+        patterns:
+          - "vite"
+          - "vitest"
+          - "typescript"
+          - "@vitejs/*"
+          - "@testing-library/*"
+
+  # Keeps the action versions referenced in the workflows current, and is what
+  # makes SHA-pinning maintainable rather than a one-off.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /infra/docker
+    schedule:
+      interval: weekly

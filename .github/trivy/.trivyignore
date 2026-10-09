@@ -1,0 +1,14 @@
+# Accepted vulnerabilities, checked by the image and filesystem scans in
+# .github/workflows/{ci,security}.yml.
+#
+# Both scans already pass --ignore-unfixed, so anything listed here is a CVE
+# that DOES have a fix available and is being accepted anyway. That needs a
+# reason and an expiry, or the file quietly becomes a way to switch the gate off.
+#
+# Format — one CVE id per line, each preceded by why and until when:
+#
+#   # CVE-2024-00000 — <package>. Reachable only from <path>, which this service
+#   # never calls. Upstream fix lands in <version>. Re-check: 2026-01-31.
+#   CVE-2024-00000
+#
+# Empty on purpose: nothing is currently being waived.

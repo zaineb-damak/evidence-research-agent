@@ -1,0 +1,77 @@
+# Staging: production's shape, on production-like data services, at a smaller
+# size. In-cluster datastores are kept here on purpose — staging is where a
+# schema migration or a Neo4j constraint change gets exercised against a
+# database you are allowed to break.
+#
+#   helm upgrade --install research-agent infra/k8s/chart \
+#     --namespace research-staging --create-namespace \
+#     --values infra/k8s/chart/values-staging.yaml \
+#     --set image.tag="$GIT_SHA"
+
+environment: staging
+
+config:
+  logFormat: json
+  logLevel: info
+  llmCacheBackend: redis
+
+api:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+
+worker:
+  replicaCount: 2
+  concurrency: 4
+  autoscaling:
+    enabled: false
+
+web:
+  replicaCount: 2
+
+ingress:
+  enabled: true
+  className: nginx
+  host: research-staging.example.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+  tls:
+    enabled: true
+    secretName: research-agent-staging-tls
+
+serviceMonitor:
+  enabled: true
+
+networkPolicy:
+  enabled: true
+
+# API keys come from a Secret created outside the chart, so nothing sensitive
+# is committed. Create it before the first install, with External Secrets or:
+#   kubectl -n research-staging create secret generic research-agent-secrets \
+#     --from-literal=JWT_SECRET=... --from-literal=ANTHROPIC_API_KEY=...
+#
+# The derived connection values (POSTGRES_DSN, NEO4J_PASSWORD) stay chart-owned
+# either way, so this Secret only needs the keys the chart cannot compute.
+secrets:
+  create: false
+  existingSecret: research-agent-secrets
+
+postgres:
+  enabled: true
+  persistence:
+    size: 20Gi
+
+neo4j:
+  enabled: true
+  persistence:
+    size: 20Gi
+
+qdrant:
+  enabled: true
+  persistence:
+    size: 20Gi
+
+redis:
+  enabled: true

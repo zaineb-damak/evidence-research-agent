@@ -50,6 +50,7 @@ dependencies = [
     # Observability
     "opentelemetry-api>=1.28",
     "opentelemetry-sdk>=1.28",
+    "prometheus-client>=0.21",
     "langfuse>=3",           # v3+ handler: langfuse.langchain.CallbackHandler
 ]
 

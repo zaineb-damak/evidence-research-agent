@@ -875,6 +875,7 @@ dependencies = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-sdk" },
     { name = "praw" },
+    { name = "prometheus-client" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -931,6 +932,7 @@ requires-dist = [
     { name = "opentelemetry-api", specifier = ">=1.28" },
     { name = "opentelemetry-sdk", specifier = ">=1.28" },
     { name = "praw", specifier = ">=7.8" },
+    { name = "prometheus-client", specifier = ">=0.21" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pydantic-settings", specifier = ">=2.6" },
@@ -3078,6 +3080,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/08/06/d6eaaaa5ec11ebc56b176e16233c4dbd7ae5a51a9d82649cad8aa2ba3b43/prawcore-4.0.0.tar.gz", hash = "sha256:c7e4d6e1b71e2b9c88680aee467e3e07d22df4c91bb01488ce2a3ab43d76b076", size = 1208273, upload-time = "2026-06-13T02:00:32.083Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5b/97/e52a0a62a14b17ce382d68d00a838887deab52eddac8d9e87f4e6274efcd/prawcore-4.0.0-py3-none-any.whl", hash = "sha256:53f91bcd4cb25a26ca58f3ba7c5bf83d9d93a74025aae2c926bc6b0d5fd11df7", size = 19294, upload-time = "2026-06-13T02:00:30.519Z" },
+]
+
+[[package]]
+name = "prometheus-client"
+version = "0.26.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/52/73/f1334c29c2af4cd9dba6c7817e61b611bd0215e2eb5565c6064a4de18802/prometheus_client-0.26.0.tar.gz", hash = "sha256:04a91bcf94e2cf74a44a1a874d651a2e853ed354b6e822f3b7487751465d5c2b", size = 92910, upload-time = "2026-07-24T19:36:41.893Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/eb/a3/b69efbf4143b5b9859b977770bbbabcc2796b702fa69dc40271e45cd5a56/prometheus_client-0.26.0-py3-none-any.whl", hash = "sha256:fa93d06737aa02bacd05794768508bb97d2fbee28cb3bca04eaae92f0ca953d6", size = 64494, upload-time = "2026-07-24T19:36:40.854Z" },
 ]
 
 [[package]]

@@ -13,6 +13,7 @@ tests deterministic.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 from functools import lru_cache
 
 from decouple import config
@@ -21,6 +22,30 @@ from pydantic import BaseModel
 from src.embeddings.base import EmbeddingProviderName
 from src.llm.base import LLMProviderName
 from src.models.schemas import ResearchDepth
+
+
+class DeploymentEnvironment(StrEnum):
+    """Which deployment a process is running in (labels logs, traces, metrics)."""
+
+    DEVELOPMENT = "development"
+    STAGING = "staging"
+    PRODUCTION = "production"
+
+
+class LogFormat(StrEnum):
+    """How log lines are rendered."""
+
+    # One JSON object per line — what cluster log collectors parse.
+    JSON = "json"
+    # Colorized key/value lines — readable in a local terminal.
+    CONSOLE = "console"
+
+
+class LogLevel(StrEnum):
+    DEBUG = "debug"
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
 
 
 @dataclass(frozen=True)
@@ -103,6 +128,24 @@ class Settings(BaseModel):
 
     # App
     crawler_user_agent: str = "evidence-research-agent/0.1"
+
+    # Deployment identity — stamped onto every log line, span, and metric so a
+    # single collector can tell staging from production.
+    environment: DeploymentEnvironment = DeploymentEnvironment.DEVELOPMENT
+    service_name: str = "evidence-research-agent"
+    release_version: str = "dev"
+
+    # Observability
+    log_level: LogLevel = LogLevel.INFO
+    log_format: LogFormat = LogFormat.CONSOLE
+    metrics_enabled: bool = True
+    # The worker has no HTTP server of its own, so it opens this port purely to
+    # serve /metrics for Prometheus to scrape.
+    worker_metrics_port: int = 9100
+
+    # Readiness — how long a dependency probe may block before it counts as
+    # failed. Kept well under Kubernetes' readiness probe timeout.
+    readiness_timeout_seconds: float = 2.0
 
     # CORS — comma-separated allowed origins for browser clients (e.g. the
     # frontend dev server). Empty disables CORS middleware entirely.
@@ -192,6 +235,24 @@ def _load_from_env() -> Settings:
         crawler_user_agent=config("CRAWLER_USER_AGENT", default=defaults.crawler_user_agent),
         cors_allowed_origins=config(
             "CORS_ALLOWED_ORIGINS", default=defaults.cors_allowed_origins
+        ),
+        environment=config(
+            "ENVIRONMENT", default=defaults.environment, cast=DeploymentEnvironment
+        ),
+        service_name=config("SERVICE_NAME", default=defaults.service_name),
+        release_version=config("RELEASE_VERSION", default=defaults.release_version),
+        log_level=config("LOG_LEVEL", default=defaults.log_level, cast=LogLevel),
+        log_format=config("LOG_FORMAT", default=defaults.log_format, cast=LogFormat),
+        metrics_enabled=config(
+            "METRICS_ENABLED", default=defaults.metrics_enabled, cast=bool
+        ),
+        worker_metrics_port=config(
+            "WORKER_METRICS_PORT", default=defaults.worker_metrics_port, cast=int
+        ),
+        readiness_timeout_seconds=config(
+            "READINESS_TIMEOUT_SECONDS",
+            default=defaults.readiness_timeout_seconds,
+            cast=float,
         ),
     )
 

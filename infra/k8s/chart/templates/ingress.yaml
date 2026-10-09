@@ -1,0 +1,44 @@
+{{- if .Values.ingress.enabled }}
+{{/*
+Everything enters through the web Service: nginx serves the SPA and proxies
+/api and /auth onward. That keeps the browser same-origin (no CORS) and means
+/metrics and /health are not routable from outside the cluster.
+
+The API's SSE progress stream needs proxy buffering off and a long read
+timeout, or stage updates arrive in batches and long runs get cut off. The
+annotations below are ingress-nginx's spelling of that; another controller
+needs its own equivalent.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "research-agent.fullname" . }}
+  labels:
+    {{- include "research-agent.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ required "ingress.tls.secretName is required when ingress.tls.enabled is true" .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "research-agent.fullname" . }}-web
+                port:
+                  name: http
+{{- end }}

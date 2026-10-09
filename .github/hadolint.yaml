@@ -1,0 +1,15 @@
+# hadolint configuration for infra/docker/*.Dockerfile
+
+failure-threshold: warning
+
+ignored:
+  # DL3008 "pin apt versions" — the only apt install is build-essential in a
+  # builder stage that never reaches a published image, and Debian point
+  # releases expire pinned versions faster than they can be maintained.
+  - DL3008
+  # DL3018 "pin apk versions" — same reasoning for the Alpine-based web builder.
+  - DL3018
+
+trustedRegistries:
+  - docker.io
+  - ghcr.io

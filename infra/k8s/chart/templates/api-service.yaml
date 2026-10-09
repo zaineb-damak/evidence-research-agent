@@ -1,0 +1,16 @@
+{{- $component := "api" -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "research-agent.fullname" . }}-{{ $component }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.api.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "research-agent.componentSelectorLabels" (dict "root" . "component" $component) | nindent 4 }}

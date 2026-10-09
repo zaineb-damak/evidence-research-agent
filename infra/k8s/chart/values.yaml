@@ -1,0 +1,312 @@
+# Default values — a self-contained install suitable for a local cluster
+# (kind, minikube, k3s). Staging and production override this file; see
+# values-staging.yaml and values-prod.yaml.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Stamped onto logs, traces and metrics so one collector can tell deployments
+# apart. One of: development | staging | production.
+environment: development
+
+image:
+  # Set by CI to the git SHA or the release tag. Empty falls back to the
+  # chart's appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+  api:
+    repository: ghcr.io/OWNER/evidence-research-agent-api
+  worker:
+    repository: ghcr.io/OWNER/evidence-research-agent-worker
+  web:
+    repository: ghcr.io/OWNER/evidence-research-agent-web
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Non-secret settings, rendered into a ConfigMap and mounted with envFrom.
+# Names match src/config.py exactly.
+config:
+  logLevel: info
+  logFormat: json
+  metricsEnabled: true
+  readinessTimeoutSeconds: 2
+
+  llmProvider: anthropic
+  llmModel: claude-sonnet-5
+  llmCacheBackend: redis
+  llmRequestsPerSecond: 0
+  llmStructuredRetryAttempts: 2
+
+  embedProvider: openai
+  embedModel: text-embedding-3-small
+  embedDim: 1536
+
+  qdrantCollection: research_passages
+  checkpointThreadScope: user_session_research
+  crawlerUserAgent: evidence-research-agent/0.1
+  langfuseHost: https://cloud.langfuse.com
+
+  # Empty disables the CORS middleware, which is correct in the default
+  # same-origin setup where nginx proxies /api and /auth to the API.
+  corsAllowedOrigins: ""
+
+  # Any additional environment variables, as plain key/value pairs.
+  extra: {}
+
+secrets:
+  # true renders a Secret from `values` below. Convenient for a local cluster;
+  # for anything shared, set create: false and point existingSecret at a Secret
+  # managed outside the chart (External Secrets, Sealed Secrets, SOPS) so
+  # credentials never live in a values file or in git.
+  create: true
+  existingSecret: ""
+  values:
+    JWT_SECRET: ""
+    API_KEYS: ""
+    ANTHROPIC_API_KEY: ""
+    OPENAI_API_KEY: ""
+    TAVILY_API_KEY: ""
+    GITHUB_TOKEN: ""
+    VOYAGE_API_KEY: ""
+    REDDIT_CLIENT_ID: ""
+    REDDIT_CLIENT_SECRET: ""
+    LANGFUSE_PUBLIC_KEY: ""
+    LANGFUSE_SECRET_KEY: ""
+
+# Pod-level hardening applied to every workload. The Python images run as
+# uid/gid 10001 (see infra/docker/python.Dockerfile); the web image ships
+# nginx-unprivileged's uid 101 and overrides this below.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+api:
+  replicaCount: 2
+  port: 8000
+  podAnnotations: {}
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      # No CPU limit on purpose: throttling an async web process adds tail
+      # latency without protecting the node, which the request already does.
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+worker:
+  replicaCount: 2
+  metricsPort: 9100
+  # Threads, not prefork: the pipeline is I/O-bound and in-process execution is
+  # what keeps /metrics accurate (see apps/worker/celery_app.py).
+  concurrency: 8
+  # A research job runs for minutes. Celery finishes the in-flight task on
+  # SIGTERM, so the grace period has to outlast a job or a rollout kills work
+  # that has already been paid for in LLM tokens.
+  terminationGracePeriodSeconds: 900
+  podAnnotations: {}
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+web:
+  replicaCount: 2
+  port: 8080
+  # Empty means same-origin: the browser calls /api and /auth on the web
+  # origin and nginx proxies them to the API Service. Set this only when the
+  # API is served from a different host.
+  apiBaseUrl: ""
+  podAnnotations: {}
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    runAsGroup: 101
+    fsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+migrations:
+  # Alembic runs as a post-install/pre-upgrade hook (see
+  # templates/migrate-job.yaml for why the phases differ). Uses the api image.
+  enabled: true
+  # Retries back off exponentially (10s, 20s, 40s…), so 6 covers an in-cluster
+  # Postgres that is still starting on first install.
+  backoffLimit: 6
+  activeDeadlineSeconds: 900
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  host: research.localhost
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: ""
+
+# Prometheus Operator integration. Off by default because the CRD is not
+# present on every cluster and a missing CRD fails the install.
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  labels: {}
+
+# Default-deny plus explicit allows. Off by default because it silently does
+# nothing on a cluster whose CNI does not enforce policy, which is worse than
+# not having it; turn it on where you know the CNI enforces.
+networkPolicy:
+  enabled: false
+  # Namespace selector for whatever scrapes /metrics.
+  monitoringNamespaceSelector:
+    kubernetes.io/metadata.name: monitoring
+  ingressNamespaceSelector:
+    kubernetes.io/metadata.name: ingress-nginx
+
+# --- stateful dependencies ---------------------------------------------------
+# Each can be replaced by a managed service: set enabled: false and supply the
+# matching external* value.
+
+postgres:
+  enabled: true
+  image: postgres:16
+  service:
+    port: 5432
+  auth:
+    username: research
+    password: research
+    database: research
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  # Used when enabled is false. Include the driver: postgresql+psycopg://…
+  externalDsn: ""
+
+neo4j:
+  enabled: true
+  image: neo4j:5-community
+  service:
+    boltPort: 7687
+    httpPort: 7474
+  auth:
+    username: neo4j
+    password: researchpass
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+  externalUri: ""
+
+qdrant:
+  enabled: true
+  # The -unprivileged variant: the stock image writes /qdrant/snapshots as root
+  # and crashes with "Permission denied" under the chart's non-root pod.
+  image: qdrant/qdrant:v1.12.4-unprivileged
+  service:
+    httpPort: 6333
+    grpcPort: 6334
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  externalUrl: ""
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+  service:
+    port: 6379
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  # Include the database index: redis://host:6379/0
+  externalUrl: ""

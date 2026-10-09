@@ -1,0 +1,123 @@
+{{- $component := "api" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "research-agent.fullname" . }}-{{ $component }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  {{- if not .Values.api.autoscaling.enabled }}
+  replicas: {{ .Values.api.replicaCount }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "research-agent.componentSelectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "research-agent.componentLabels" (dict "root" . "component" $component) | nindent 8 }}
+      annotations:
+        # Roll the Deployment when configuration changes; without this a
+        # `helm upgrade` that only edits the ConfigMap leaves pods on the old
+        # values until something else happens to restart them.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.api.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "research-agent.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      # Spread replicas over nodes so losing one node cannot take the whole
+      # API down, but schedule anyway on a single-node cluster.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "research-agent.componentSelectorLabels" (dict "root" . "component" $component) | nindent 14 }}
+      containers:
+        - name: {{ $component }}
+          image: {{ include "research-agent.image" (dict "repository" .Values.image.api.repository "root" .) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.port }}
+              protocol: TCP
+          envFrom:
+            {{- include "research-agent.envFrom" . | nindent 12 }}
+          env:
+            - name: API_PORT
+              value: {{ .Values.api.port | quote }}
+            {{- with .Values.api.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          # Startup gates the other two: a cold start pays for connection pools
+          # and LangChain imports, and without this the liveness probe would
+          # kill the pod before it ever finished booting.
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          # Liveness deliberately uses /health/live, which touches no
+          # dependency — a Postgres blip must not restart every API pod.
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # Readiness does probe dependencies, so a pod drops out of the
+          # Service while its backing stores are unreachable and returns on
+          # its own once they recover.
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "research-agent.tmpVolumeMount" . | nindent 12 }}
+          lifecycle:
+            preStop:
+              # Give the endpoints controller time to stop routing here before
+              # uvicorn starts refusing connections, which is what turns a
+              # rollout into a handful of 502s otherwise. `exec` rather than the
+              # newer `sleep` action, which only went GA in Kubernetes 1.32.
+              exec:
+                command: ["/bin/sleep", "5"]
+      terminationGracePeriodSeconds: 30
+      volumes:
+        {{- include "research-agent.tmpVolume" . | nindent 8 }}
+      {{- with .Values.api.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

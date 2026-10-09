@@ -1,0 +1,41 @@
+{{/*
+`helm test <release>` — proves the release is actually serving, not just that
+the objects were accepted. Readiness is the right target because it fails
+loudly when a datastore is unreachable, which is the usual first-install
+mistake (a wrong external DSN, a PVC that never bound).
+*/}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "research-agent.fullname" . }}-test-api-ready
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" "test") | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: probe
+      image: curlimages/curl:8.11.1
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+      command:
+        - sh
+        - -c
+        - |
+          set -eu
+          curl --fail --silent --show-error --max-time 10 \
+            "http://{{ include "research-agent.fullname" . }}-api:{{ .Values.api.port }}/health/ready"
+          curl --fail --silent --show-error --max-time 10 \
+            "http://{{ include "research-agent.fullname" . }}-web:{{ .Values.web.port }}/healthz"

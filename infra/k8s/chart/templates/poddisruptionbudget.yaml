@@ -1,0 +1,21 @@
+{{/*
+Keeps a voluntary disruption — a node drain, a cluster upgrade — from taking
+every replica of a component at once.
+*/}}
+{{- range $component := (list "api" "worker" "web") }}
+{{- $spec := index $.Values $component }}
+{{- if $spec.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "research-agent.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" $ "component" $component) | nindent 4 }}
+spec:
+  minAvailable: {{ $spec.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "research-agent.componentSelectorLabels" (dict "root" $ "component" $component) | nindent 6 }}
+{{- end }}
+{{- end }}

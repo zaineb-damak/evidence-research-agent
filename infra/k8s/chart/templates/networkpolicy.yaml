@@ -1,0 +1,128 @@
+{{- if .Values.networkPolicy.enabled }}
+{{/*
+Default-deny inside the namespace, then the specific flows the system needs.
+Only meaningful on a cluster whose CNI enforces NetworkPolicy — on one that
+does not, these objects are accepted and silently do nothing, which is why the
+default is off.
+
+Egress to the internet stays open: the researcher fetches sources and calls LLM
+providers, so locking egress down means maintaining an allowlist of every
+provider and source domain.
+*/}}
+{{- $fullname := include "research-agent.fullname" . -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-default-deny-ingress
+  labels:
+    {{- include "research-agent.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "research-agent.selectorLabels" . | nindent 6 }}
+  policyTypes: ["Ingress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-web-from-ingress
+  labels:
+    {{- include "research-agent.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "research-agent.componentSelectorLabels" (dict "root" . "component" "web") | nindent 6 }}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressNamespaceSelector | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.web.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-api-from-web
+  labels:
+    {{- include "research-agent.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "research-agent.componentSelectorLabels" (dict "root" . "component" "api") | nindent 6 }}
+  policyTypes: ["Ingress"]
+  ingress:
+    # Application traffic arrives only via the web pods' nginx proxy.
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "research-agent.componentSelectorLabels" (dict "root" . "component" "web") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.api.port }}
+    # Prometheus scrapes /metrics on the same port.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.monitoringNamespaceSelector | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.api.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-worker-metrics
+  labels:
+    {{- include "research-agent.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "research-agent.componentSelectorLabels" (dict "root" . "component" "worker") | nindent 6 }}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.monitoringNamespaceSelector | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.worker.metricsPort }}
+{{- range $component, $port := dict
+      "postgres" .Values.postgres.service.port
+      "neo4j" .Values.neo4j.service.boltPort
+      "qdrant" .Values.qdrant.service.httpPort
+      "redis" .Values.redis.service.port }}
+{{- if (index $.Values $component).enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-{{ $component }}-from-app
+  labels:
+    {{- include "research-agent.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "research-agent.componentSelectorLabels" (dict "root" $ "component" $component) | nindent 6 }}
+  policyTypes: ["Ingress"]
+  ingress:
+    # Only the API, the worker and the migration Job reach a datastore.
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "research-agent.componentSelectorLabels" (dict "root" $ "component" "api") | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "research-agent.componentSelectorLabels" (dict "root" $ "component" "worker") | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "research-agent.componentSelectorLabels" (dict "root" $ "component" "migrate") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ $port }}
+{{- end }}
+{{- end }}
+{{- end }}

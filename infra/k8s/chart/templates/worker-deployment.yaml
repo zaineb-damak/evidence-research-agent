@@ -1,0 +1,120 @@
+{{- $component := "worker" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "research-agent.fullname" . }}-{{ $component }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  {{- if not .Values.worker.autoscaling.enabled }}
+  replicas: {{ .Values.worker.replicaCount }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Never take capacity away first: an old pod keeps running its research
+      # job until it finishes, so the new pod has to be additional.
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "research-agent.componentSelectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "research-agent.componentLabels" (dict "root" . "component" $component) | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.worker.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "research-agent.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "research-agent.componentSelectorLabels" (dict "root" . "component" $component) | nindent 14 }}
+      containers:
+        - name: {{ $component }}
+          image: {{ include "research-agent.image" (dict "repository" .Values.image.worker.repository "root" .) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.worker.metricsPort }}
+              protocol: TCP
+          envFrom:
+            {{- include "research-agent.envFrom" . | nindent 12 }}
+          env:
+            - name: WORKER_CONCURRENCY
+              value: {{ .Values.worker.concurrency | quote }}
+            - name: WORKER_METRICS_PORT
+              value: {{ .Values.worker.metricsPort | quote }}
+            {{- with .Values.worker.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          # The worker serves no HTTP API, so readiness is "the metrics server
+          # is listening" — which the worker_ready signal starts, meaning it is
+          # also a true signal that Celery is consuming the queue.
+          # The port only opens once Celery reaches its broker, so this window
+          # has to cover Redis coming up too — on a cold cluster that includes
+          # pulling the Redis image. Five minutes, not the API's two and a half.
+          startupProbe:
+            tcpSocket:
+              port: metrics
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: metrics
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # Liveness asks Celery itself, because a worker can hold its socket
+          # open while its consumer has stopped. Generous timings: the check
+          # round-trips through Redis and must not fire during a busy moment.
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - celery -A apps.worker.celery_app inspect ping --destination "celery@$HOSTNAME" --timeout 10
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 20
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "research-agent.tmpVolumeMount" . | nindent 12 }}
+      # Celery finishes the task it is holding before exiting. This has to
+      # outlast a research run or a rollout discards work already paid for in
+      # LLM tokens; the LangGraph checkpoint would resume it, but only after a
+      # re-enqueue.
+      terminationGracePeriodSeconds: {{ .Values.worker.terminationGracePeriodSeconds }}
+      volumes:
+        {{- include "research-agent.tmpVolume" . | nindent 8 }}
+      {{- with .Values.worker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

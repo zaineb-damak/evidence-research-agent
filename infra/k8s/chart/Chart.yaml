@@ -1,0 +1,21 @@
+apiVersion: v2
+name: research-agent
+description: >-
+  Evidence Research Agent — the API, the Celery pipeline worker, the web UI,
+  and optionally the stateful services they depend on.
+type: application
+
+# version  — the chart's own version, bumped when templates change.
+# appVersion — the default image tag, overridden per deploy by `--set image.tag`.
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - research
+  - evidence-graph
+  - langgraph
+
+# Postgres, Neo4j, Qdrant and Redis are plain StatefulSets in this chart rather
+# than subchart dependencies: the set is small, it keeps the chart installable
+# on an air-gapped or offline cluster, and each one can be switched off in
+# favour of a managed endpoint (see the `external*` values).

@@ -1,0 +1,125 @@
+{{- if .Values.neo4j.enabled }}
+{{/*
+Single-instance Neo4j Community for development and staging. Community edition
+has no clustering, so this cannot be made highly available — for production set
+neo4j.enabled=false and point neo4j.externalUri at Aura or an Enterprise
+cluster. See values-prod.yaml.
+*/}}
+{{- $component := "neo4j" -}}
+{{- $name := include "research-agent.neo4j.fullname" . -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+type: Opaque
+stringData:
+  NEO4J_AUTH: {{ printf "%s/%s" .Values.neo4j.auth.username .Values.neo4j.auth.password | quote }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: bolt
+      port: {{ .Values.neo4j.service.boltPort }}
+      targetPort: bolt
+    - name: http
+      port: {{ .Values.neo4j.service.httpPort }}
+      targetPort: http
+  selector:
+    {{- include "research-agent.componentSelectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  serviceName: {{ $name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "research-agent.componentSelectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "research-agent.componentLabels" (dict "root" . "component" $component) | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        # The official image's neo4j user.
+        runAsNonRoot: true
+        runAsUser: 7474
+        runAsGroup: 7474
+        fsGroup: 7474
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: neo4j
+          image: {{ .Values.neo4j.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: bolt
+              containerPort: {{ .Values.neo4j.service.boltPort }}
+            - name: http
+              containerPort: {{ .Values.neo4j.service.httpPort }}
+          env:
+            - name: NEO4J_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}
+                  key: NEO4J_AUTH
+            # No APOC: the app uses plain Cypher only, so we skip the plugin
+            # download and its network dependency at startup.
+            - name: NEO4J_server_memory_pagecache_size
+              value: 512m
+          readinessProbe:
+            tcpSocket:
+              port: bolt
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 10
+          livenessProbe:
+            tcpSocket:
+              port: bolt
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            {{- toYaml .Values.neo4j.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: logs
+              mountPath: /logs
+      volumes:
+        - name: logs
+          emptyDir: {}
+        {{- if not .Values.neo4j.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+  {{- if .Values.neo4j.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.neo4j.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.neo4j.persistence.size }}
+  {{- end }}
+{{- end }}

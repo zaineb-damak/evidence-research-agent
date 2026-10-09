@@ -21,10 +21,14 @@ from apps.api.dependencies import (
 )
 from apps.api.events import SSE_MEDIA_TYPE, stream_progress
 from apps.api.jobs import require_owned_job, require_owned_job_snapshot
+from apps.api.middleware import RequestContextMiddleware
 from apps.api.routes_auth import router as auth_router
+from apps.api.routes_health import router as health_router
 from src.config import Settings, get_settings
 from src.db.repository import JobRepository
 from src.models.schemas import ResearchRequest
+from src.observability.logging import configure_logging
+from src.observability.metrics import set_app_info
 from src.stores.graph import GraphStore
 
 API_TITLE = "Evidence Research Agent"
@@ -40,14 +44,20 @@ CORS_ALLOW_ALL = ["*"]
 # the client as they're written rather than in delayed batches.
 SSE_RESPONSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
+_startup_settings = get_settings()
+configure_logging(_startup_settings)
+set_app_info(_startup_settings)
+
 app = FastAPI(title=API_TITLE, version=API_VERSION)
 app.include_router(auth_router)
+app.include_router(health_router)
 
-_cors_settings = get_settings()
-if _cors_settings.cors_allowed_origin_list:
+app.add_middleware(RequestContextMiddleware)
+
+if _startup_settings.cors_allowed_origin_list:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=_cors_settings.cors_allowed_origin_list,
+        allow_origins=_startup_settings.cors_allowed_origin_list,
         allow_credentials=False,
         allow_methods=CORS_ALLOW_ALL,
         allow_headers=CORS_ALLOW_ALL,

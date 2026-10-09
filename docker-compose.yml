@@ -1,3 +1,33 @@
+# Local stack.
+#
+#   docker compose up -d                    # backing services only
+#   docker compose --profile app up -d      # plus api, worker, web and migrations
+#
+# The application services sit behind the `app` profile so the default command
+# still brings up just the databases, which is what you want when running the
+# API and worker from your shell with `uv run`.
+#
+# Kubernetes is the deployment target (infra/k8s/chart); this file is for
+# development and for smoke-testing the images CI publishes.
+
+x-app-environment: &app-environment
+  # Service addresses inside the compose network, overriding the localhost
+  # values in .env that the host-side workflow uses.
+  POSTGRES_DSN: postgresql+psycopg://research:research@postgres:5432/research
+  NEO4J_URI: bolt://neo4j:7687
+  NEO4J_USER: neo4j
+  NEO4J_PASSWORD: researchpass
+  QDRANT_URL: http://qdrant:6333
+  REDIS_URL: redis://redis:6379/0
+  ENVIRONMENT: development
+  LOG_FORMAT: console
+
+x-app-env-file: &app-env-file
+  # API keys and JWT secret. Optional so the databases still come up on a fresh
+  # clone that has not copied .env.example yet.
+  - path: .env
+    required: false
+
 services:
   postgres:
     image: postgres:16
@@ -39,6 +69,13 @@ services:
       - "6334:6334"   # grpc
     volumes:
       - qdrantdata:/qdrant/storage
+    healthcheck:
+      # The image has no shell utilities beyond the entrypoint, but it does ship
+      # a TCP listener we can poke with bash's /dev/tcp.
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -53,6 +90,77 @@ services:
   # Langfuse (LLM observability) is a managed cloud service — set
   # LANGFUSE_HOST / LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY to point at
   # cloud.langfuse.com (or your own EU/US region). It is not self-hosted here.
+
+  # --- application (profile: app) --------------------------------------------
+
+  migrate:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: infra/docker/python.Dockerfile
+      target: api
+    image: research-agent-api:local
+    command: ["alembic", "upgrade", "head"]
+    env_file: *app-env-file
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: infra/docker/python.Dockerfile
+      target: api
+    image: research-agent-api:local
+    ports:
+      - "8000:8000"
+    env_file: *app-env-file
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: infra/docker/python.Dockerfile
+      target: worker
+    image: research-agent-worker:local
+    ports:
+      - "9100:9100"   # prometheus metrics
+    env_file: *app-env-file
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+    image: research-agent-web:local
+    ports:
+      - "5173:8080"
+    environment:
+      APP_API_UPSTREAM: http://api:8000
+    depends_on:
+      - api
+    restart: unless-stopped
 
 volumes:
   pgdata:

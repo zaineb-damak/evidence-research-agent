@@ -1,0 +1,126 @@
+# Production.
+#
+# The important difference from staging is not the replica counts — it is that
+# no datastore runs in this chart. The StatefulSets here are single-replica,
+# have no failover, no backups and no point-in-time recovery; they exist so a
+# laptop or a staging namespace can run the whole system from one command.
+# Production points at managed or operator-run services instead, and the chart
+# derives every connection string from the external* values below.
+#
+#   helm upgrade --install research-agent infra/k8s/chart \
+#     --namespace research-prod --create-namespace \
+#     --values infra/k8s/chart/values-prod.yaml \
+#     --set image.tag="$RELEASE_TAG"
+
+environment: production
+
+image:
+  # Never `latest` in production: a node that reschedules a pod must get the
+  # exact build that was approved, not whatever the tag points at today.
+  pullPolicy: IfNotPresent
+
+config:
+  logFormat: json
+  logLevel: info
+  llmCacheBackend: redis
+
+api:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 65
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+worker:
+  replicaCount: 3
+  concurrency: 8
+  # A deep research run is long; the grace period has to outlast it or a
+  # rollout throws away tokens that have already been spent.
+  terminationGracePeriodSeconds: 1800
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 30
+    targetCPUUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 4Gi
+
+web:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+
+ingress:
+  enabled: true
+  className: nginx
+  host: research.example.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  tls:
+    enabled: true
+    secretName: research-agent-prod-tls
+
+serviceMonitor:
+  enabled: true
+
+networkPolicy:
+  enabled: true
+
+# Nothing sensitive in git. The Secret is produced by External Secrets, Sealed
+# Secrets or SOPS and must carry: JWT_SECRET, API_KEYS, and whichever provider
+# keys the configured LLM/embedding/search providers need.
+secrets:
+  create: false
+  existingSecret: research-agent-secrets
+
+# --- managed datastores ------------------------------------------------------
+# Every endpoint below is a REPLACE_ME placeholder, not a default: the Postgres
+# DSN and the Neo4j password carry credentials, so they are supplied at deploy
+# time with --set-string from a secret store rather than committed here.
+#
+# The placeholders are deliberately unusable rather than plausible-looking.
+# .github/scripts/helm-deploy.sh renders the release and refuses to deploy if
+# any REPLACE_ME survives, so forgetting one fails the pipeline instead of
+# rolling out a release that cannot reach its database.
+
+postgres:
+  enabled: false
+  externalDsn: postgresql+psycopg://REPLACE_ME:REPLACE_ME@REPLACE_ME:5432/research
+
+neo4j:
+  enabled: false
+  externalUri: bolt://REPLACE_ME:7687
+  auth:
+    username: neo4j
+    password: REPLACE_ME
+
+qdrant:
+  enabled: false
+  externalUrl: http://REPLACE_ME:6333
+
+redis:
+  enabled: false
+  externalUrl: redis://REPLACE_ME:6379/0

@@ -9,12 +9,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from functools import lru_cache
 
-from src.config import get_settings
+from src.config import Settings, get_settings
 from src.db.repository import JobRepository, PostgresJobRepository
 from src.db.users import PostgresUserRepository, UserRepository
+from src.health.checks import ReadinessReport, check_readiness
 from src.stores.graph import GraphStore, Neo4jGraphStore
 
 JobEnqueuer = Callable[[str], None]
+ReadinessChecker = Callable[[Settings], ReadinessReport]
 
 
 def get_repository() -> JobRepository:
@@ -37,6 +39,10 @@ def _cached_graph_store() -> Neo4jGraphStore:
 
 def get_graph_store() -> GraphStore:
     return _cached_graph_store()
+
+
+def get_readiness_checker() -> ReadinessChecker:
+    return check_readiness
 
 
 def get_job_enqueuer() -> JobEnqueuer:

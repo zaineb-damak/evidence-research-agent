@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+# Releases are never cancelled mid-flight: a half-pushed image set is worse
+# than a redundant run, so only queue behind the previous release.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    name: Build, push and sign ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write  # push to GHCR
+      id-token: write  # cosign keyless signing via OIDC
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            dockerfile: infra/docker/python.Dockerfile
+            target: api
+          - image: worker
+            dockerfile: infra/docker/python.Dockerfile
+            target: worker
+          - image: web
+            dockerfile: infra/docker/web.Dockerfile
+            target: ""
+    # Set by whichever matrix leg finishes last, which is safe here: all three
+    # derive the same version from the same ref.
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # GHCR rejects uppercase in a repository path, and GitHub org/user names
+      # preserve case.
+      - name: Compute image name
+        id: name
+        run: echo "value=${REGISTRY}/${GITHUB_REPOSITORY,,}-${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.name.outputs.value }}
+          # Every image is tagged with the commit SHA so a running pod can
+          # always be traced back to a commit, plus the semver tag on a release.
+          tags: |
+            type=sha,format=long
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: RELEASE_VERSION=${{ steps.meta.outputs.version }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.image }}-release
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-release
+
+      - uses: sigstore/cosign-installer@v3
+
+      # Keyless: the signature is bound to this workflow's OIDC identity, so
+      # there is no signing key to store or rotate. Verify with
+      #   cosign verify <image> \
+      #     --certificate-identity-regexp '^https://github.com/<owner>/<repo>/' \
+      #     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+      - name: Sign image
+        run: cosign sign --yes "${IMAGE}@${DIGEST}"
+        env:
+          IMAGE: ${{ steps.name.outputs.value }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+
+      # buildx already attached an SBOM and provenance to the manifest above;
+      # this second copy is a downloadable artifact, for auditors who are not
+      # going to pull attestations out of a registry.
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.name.outputs.value }}@${{ steps.push.outputs.digest }}
+          format: spdx-json
+          artifact-name: sbom-${{ matrix.image }}.spdx.json
+
+  deploy-staging:
+    name: Deploy to staging
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+
+      - name: Deploy
+        run: .github/scripts/helm-deploy.sh
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+          RELEASE_NAME: research-agent
+          NAMESPACE: research-agent-staging
+          VALUES_FILE: infra/k8s/chart/values-staging.yaml
+          IMAGE_PREFIX: ${{ env.REGISTRY }}/${{ github.repository }}
+          IMAGE_TAG: sha-${{ github.sha }}
+
+  deploy-production:
+    name: Deploy to production
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    # Protect this environment with required reviewers in repo settings; that
+    # setting, not this file, is what makes production a manual approval gate.
+    environment:
+      name: production
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+
+      - name: Deploy
+        run: .github/scripts/helm-deploy.sh
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+          RELEASE_NAME: research-agent
+          NAMESPACE: research-agent
+          VALUES_FILE: infra/k8s/chart/values-prod.yaml
+          IMAGE_PREFIX: ${{ env.REGISTRY }}/${{ github.repository }}
+          IMAGE_TAG: ${{ needs.build.outputs.version }}

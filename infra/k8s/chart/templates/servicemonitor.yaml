@@ -1,0 +1,31 @@
+{{- if and .Values.serviceMonitor.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
+{{/*
+Prometheus Operator wiring. Guarded on the CRD actually being registered,
+because a manifest whose kind does not exist fails the entire release — so a
+staging or production values file can ask for monitoring before the operator is
+installed without blocking the deploy. NOTES.txt says so when that happens.
+
+Both scrape targets are in-cluster only — /metrics is never routed through the
+Ingress.
+*/}}
+{{- range $component := (list "api" "worker") }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "research-agent.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" $ "component" $component) | nindent 4 }}
+    {{- with $.Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "research-agent.componentSelectorLabels" (dict "root" $ "component" $component) | nindent 6 }}
+  endpoints:
+    - port: {{ if eq $component "api" }}http{{ else }}metrics{{ end }}
+      path: /metrics
+      interval: {{ $.Values.serviceMonitor.interval }}
+{{- end }}
+{{- end }}

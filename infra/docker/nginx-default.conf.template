@@ -1,0 +1,82 @@
+# nginx server for the SPA. Rendered at container start by the base image's
+# entrypoint, which runs envsubst over this file; NGINX_ENVSUBST_FILTER limits
+# substitution to APP_* and WEB_PORT so nginx's own $variables survive.
+
+server {
+    listen ${WEB_PORT};
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    include /etc/nginx/snippets/security-headers.conf;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+
+    # Probe target for the kubelet: answers without touching the API, so a web
+    # pod stays ready during an API outage and keeps serving the shell.
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    # Runtime configuration, returned from the config rather than written to
+    # disk so the container can run with a read-only root filesystem. Never
+    # cached: it is the one thing that differs between environments.
+    location = /config.js {
+        include /etc/nginx/snippets/security-headers.conf;
+        default_type application/javascript;
+        add_header Cache-Control "no-store" always;
+        return 200 'window.__APP_CONFIG__ = { apiBaseUrl: "${APP_API_BASE_URL}" };';
+    }
+
+    # index.html must never be cached, or a browser keeps requesting the
+    # previous release's asset filenames after a deploy.
+    location = /index.html {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-store, must-revalidate" always;
+    }
+
+    # Vite emits content-hashed filenames, so these are safe to keep forever.
+    location /assets/ {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+    }
+
+    location /api/ {
+        proxy_pass ${APP_API_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-ID $request_id;
+
+        # The progress endpoint is Server-Sent Events: buffering would batch the
+        # stage updates instead of delivering them live, and the default 60s
+        # read timeout would cut off a long research run mid-stream.
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+    }
+
+    location /auth/ {
+        proxy_pass ${APP_API_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-ID $request_id;
+    }
+
+    # Client-side routing: an unknown path is a React route, not a 404.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

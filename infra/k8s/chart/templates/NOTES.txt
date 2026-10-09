@@ -1,0 +1,44 @@
+{{ .Chart.Name }} {{ .Chart.Version }} deployed as {{ .Release.Name }} in {{ .Release.Namespace }}.
+
+Environment: {{ .Values.environment }}
+Image tag:   {{ .Values.image.tag | default .Chart.AppVersion }}
+
+Reach the app:
+{{- if .Values.ingress.enabled }}
+  http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}
+{{- else }}
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "research-agent.fullname" . }}-web {{ .Values.web.port }}:{{ .Values.web.port }}
+  then open http://localhost:{{ .Values.web.port }}
+{{- end }}
+
+Verify the release:
+  helm test {{ .Release.Name }} --namespace {{ .Release.Namespace }}
+  kubectl --namespace {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Create the first account (the API has no open registration beyond /auth/signup):
+  kubectl --namespace {{ .Release.Namespace }} exec deploy/{{ include "research-agent.fullname" . }}-api -- \
+    python -m scripts.create_user
+
+{{- if .Values.secrets.create }}
+
+WARNING: secrets.create is true, so credentials come from your values file.
+For anything shared, set secrets.create=false and secrets.existingSecret to a
+Secret managed by External Secrets / Sealed Secrets / SOPS.
+{{- end }}
+{{- if and .Values.secrets.create (not .Values.secrets.values.JWT_SECRET) }}
+
+WARNING: JWT_SECRET is empty. The API refuses every authenticated request
+until it is set (src/exceptions.py: AuthenticationError.NO_JWT_SECRET).
+{{- end }}
+{{- if and .Values.serviceMonitor.enabled (not (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1")) }}
+
+WARNING: serviceMonitor.enabled is true but the monitoring.coreos.com/v1 CRD is
+not registered on this cluster, so no ServiceMonitor was created and nothing is
+scraping /metrics. Install the Prometheus Operator, then re-run this upgrade.
+{{- end }}
+{{- if and (eq .Values.environment "production") (or .Values.postgres.enabled .Values.neo4j.enabled .Values.qdrant.enabled .Values.redis.enabled) }}
+
+WARNING: environment is production but at least one datastore is running
+in-cluster from this chart. Those are single-replica, no-failover, no-backup
+deployments meant for development and staging. See values-prod.yaml.
+{{- end }}

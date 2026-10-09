@@ -1,0 +1,113 @@
+{{- $component := "web" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "research-agent.fullname" . }}-{{ $component }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  {{- if not .Values.web.autoscaling.enabled }}
+  replicas: {{ .Values.web.replicaCount }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "research-agent.componentSelectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "research-agent.componentLabels" (dict "root" . "component" $component) | nindent 8 }}
+      {{- with .Values.web.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "research-agent.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # nginx-unprivileged runs as uid 101, not the 10001 the Python images use.
+      securityContext:
+        {{- toYaml .Values.web.podSecurityContext | nindent 8 }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "research-agent.componentSelectorLabels" (dict "root" . "component" $component) | nindent 14 }}
+      containers:
+        - name: {{ $component }}
+          image: {{ include "research-agent.image" (dict "repository" .Values.image.web.repository "root" .) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.web.port }}
+              protocol: TCP
+          env:
+            - name: WEB_PORT
+              value: {{ .Values.web.port | quote }}
+            # Where nginx proxies /api and /auth.
+            - name: APP_API_UPSTREAM
+              value: http://{{ include "research-agent.fullname" . }}-api:{{ .Values.api.port }}
+            # Returned to the browser as /config.js. Empty keeps the app
+            # same-origin, which is the setup that needs no CORS.
+            - name: APP_API_BASE_URL
+              value: {{ .Values.web.apiBaseUrl | quote }}
+          # /healthz is answered by nginx itself, so a web pod stays ready
+          # during an API outage and keeps serving the shell and its assets.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+          # With a read-only root filesystem nginx still needs somewhere to
+          # render its config template, cache, and write its pid.
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            {{- include "research-agent.tmpVolumeMount" . | nindent 12 }}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sleep", "5"]
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: nginx-conf
+          emptyDir: {}
+        - name: nginx-cache
+          emptyDir: {}
+        {{- include "research-agent.tmpVolume" . | nindent 8 }}
+      {{- with .Values.web.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.web.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.web.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

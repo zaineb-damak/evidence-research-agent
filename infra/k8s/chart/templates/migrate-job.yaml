@@ -1,0 +1,72 @@
+{{- if .Values.migrations.enabled }}
+{{/*
+Alembic runs as a hook, and the two phases are deliberately different.
+
+post-install, not pre-install: a pre-install hook runs before *any* release
+object exists, so on a first install this Job would wait forever for its own
+ServiceAccount, ConfigMap, Secrets and in-cluster Postgres. The cost is a short
+window on first install where the app is up before the schema is; nothing has
+been enqueued yet, so nothing depends on it.
+
+pre-upgrade: on every later release, the schema is migrated before the new pods
+roll, so no new pod serves against a schema it does not expect, and a failed
+migration fails the release with the previous version still running. It also
+means the old code talks to the new schema for the length of the rollout — so
+migrations must stay backward compatible with the running version. Expand
+first, contract in a later release.
+
+A pre-upgrade hook reads the *previous* release's ConfigMap and Secrets, since
+the new ones are not applied yet. Change a connection setting and a migration
+in separate releases.
+
+backoffLimit is generous because on first install Postgres may still be
+starting when this runs; Job retries back off exponentially until it is up.
+
+The Job is kept after success (no hook-delete-policy for succeeded) so its logs
+are available for a post-mortem; it is replaced on the next upgrade.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "research-agent.fullname" . }}-migrate
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" "migrate") | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "research-agent.componentLabels" (dict "root" . "component" "migrate") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "research-agent.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: migrate
+          # The api image, not a fourth one: fewer images to build, scan, sign
+          # and keep in step.
+          image: {{ include "research-agent.image" (dict "repository" .Values.image.api.repository "root" .) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            {{- include "research-agent.envFrom" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "research-agent.tmpVolumeMount" . | nindent 12 }}
+      volumes:
+        {{- include "research-agent.tmpVolume" . | nindent 8 }}
+{{- end }}

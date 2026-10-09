@@ -1,0 +1,46 @@
+{{/*
+One template for all three components. `scaleDown` is deliberately slow: the
+worker holds long-running research jobs, and a twitchy scale-down would evict
+pods mid-pipeline.
+*/}}
+{{- range $component := (list "api" "worker" "web") }}
+{{- $spec := index $.Values $component }}
+{{- if $spec.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "research-agent.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" $ "component" $component) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "research-agent.fullname" $ }}-{{ $component }}
+  minReplicas: {{ $spec.autoscaling.minReplicas }}
+  maxReplicas: {{ $spec.autoscaling.maxReplicas }}
+  metrics:
+    {{- if $spec.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $spec.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if $spec.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $spec.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 600
+{{- end }}
+{{- end }}

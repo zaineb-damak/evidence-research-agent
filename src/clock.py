@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+MILLISECONDS_PER_SECOND = 1000
+
 
 def utcnow() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
