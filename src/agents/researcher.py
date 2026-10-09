@@ -22,6 +22,7 @@ from src.sources.base import SourceConnector
 from src.sources.fetcher import chunk_text, fetch_clean
 from src.sources.mapping import source_from_raw_result
 from src.text.hashing import content_hash
+from src.text.urls import canonical_url
 
 # Called once per newly-found source, so a caller (the search graph node) can
 # report live progress. Optional and LangGraph-agnostic: this module never
@@ -61,7 +62,10 @@ def run_research(
             for raw_result in raw_results:
                 if len(out.sources) >= cap.max_sources:
                     break
-                if not raw_result.url or raw_result.url in seen_urls:
+                if not raw_result.url:
+                    continue
+                result_canonical_url = canonical_url(raw_result.url)
+                if result_canonical_url in seen_urls:
                     continue
 
                 # Connector-provided content is untrusted too, so sanitize it the
@@ -77,7 +81,7 @@ def run_research(
                 if document_content_hash in seen_hashes:
                     continue
                 seen_hashes.add(document_content_hash)
-                seen_urls.add(raw_result.url)
+                seen_urls.add(result_canonical_url)
 
                 source = source_from_raw_result(raw_result)
                 document = Document(
