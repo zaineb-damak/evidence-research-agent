@@ -170,7 +170,7 @@ jobs:
       # that are fixable and accepted anyway go in .github/trivy/.trivyignore
       # with a reason and a date.
       - name: Scan image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
           image-ref: research-agent-${{ matrix.image }}:ci
           severity: HIGH,CRITICAL
