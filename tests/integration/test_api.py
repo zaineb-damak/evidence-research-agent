@@ -96,6 +96,21 @@ def test_unknown_job_returns_404(client):
     assert client.get("/api/research/nope", headers=headers).status_code == 404
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"question": ""},
+        {"question": "   \n\t "},
+        {"question": "A real question", "source_types": []},
+    ],
+)
+def test_unanswerable_research_request_is_rejected_before_enqueue(client, payload):
+    headers = _auth_headers(client)
+    resp = client.post("/api/research", json=payload, headers=headers)
+    assert resp.status_code == 422, resp.text
+    assert client.get("/api/research", headers=headers).json() == []
+
+
 def test_requests_without_token_are_rejected(client):
     unauthenticated = client.post(
         "/api/research",

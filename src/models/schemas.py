@@ -9,10 +9,16 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from enum import StrEnum
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from src.clock import utcnow
+
+# A request the pipeline cannot answer is rejected at the API with a 422,
+# rather than enqueued to burn a worker slot and LLM calls before failing.
+MIN_QUESTION_LENGTH = 1
+MIN_SOURCE_TYPE_COUNT = 1
 
 
 def _id(prefix: str) -> str:
@@ -217,10 +223,13 @@ class ResearchTask(BaseModel):
 
 
 class ResearchRequest(BaseModel):
-    question: str
+    question: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=MIN_QUESTION_LENGTH)
+    ]
     depth: ResearchDepth = ResearchDepth.FAST
     source_types: list[SourceType] = Field(
-        default_factory=lambda: [SourceType.WEB, SourceType.PAPER, SourceType.DOCUMENTATION]
+        default_factory=lambda: [SourceType.WEB, SourceType.PAPER, SourceType.DOCUMENTATION],
+        min_length=MIN_SOURCE_TYPE_COUNT,
     )
 
 
